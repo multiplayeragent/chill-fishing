@@ -1,0 +1,22 @@
+{
+  "name": "Chill Fishing",
+  "genre": "sim",
+  "dim": "3D",
+  "mode": "Drop-in",
+  "players": "2–16",
+  "hook": "Cast at sunset. Reel in something rare.",
+  "how": "Hold to cast and let go at full power: far casts reach rarer fish. Tap when the bobber dunks, then hold to reel and let go whenever the fish pulls, or the line snaps. Twelve fish to collect, from Reed Minnows to the Moonfin.",
+  "controls": "Hold Space, click or the CAST button to cast and reel; A/D or ◀ ▶ to change spots; Enter to chat, 1 to 4 for emotes",
+  "uses": [
+    ["Saves", "Your fish log (every species you've caught and your biggest of each) is saved for next time."],
+    ["Leaderboard", "Each player's heaviest fish."],
+    ["Bots", "Friendly bots fish, chat and cheer on the dock until people arrive."],
+    ["Live sync", "Everyone sees each other cast, reel, emote and hold up their catch."],
+    ["Live ops", "Raise the odds of rare fish or run a fishing event without touching the code."]
+  ],
+  "ideas": [
+    "Add a shop that sells better rods with the fish you catch",
+    "Make it a frozen lake with ice-fishing holes",
+    "Add a weekly fishing contest for the biggest catch"
+  ]
+}

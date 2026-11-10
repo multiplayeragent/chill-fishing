@@ -1,0 +1,1240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chill Fishing</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #f0a07a; }
+  body { font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; touch-action: none; }
+  #tags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .tag { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; display: flex; flex-direction: column; align-items: center; will-change: transform; }
+  .tag .name { font: 700 13px system-ui, sans-serif; color: #fff; text-shadow: 0 1px 3px #000a; padding: 2px 6px; white-space: nowrap; }
+  .tag .bubble { max-width: 190px; padding: 6px 10px; margin-bottom: 4px; border-radius: 14px; background: #fff; color: #2a2238; font: 600 14px/1.3 system-ui, sans-serif; box-shadow: 0 3px 8px #0003; text-align: center; overflow-wrap: anywhere; position: relative; }
+  .tag .bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  .tag .bubble:empty { display: none; }
+  .hud { position: fixed; pointer-events: none; text-shadow: 0 1px 3px #000b; }
+  #net { top: max(10px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); font-size: 12px; font-weight: 600; opacity: .9; }
+  #log { top: calc(max(10px, env(safe-area-inset-top)) + 20px); left: max(12px, env(safe-area-inset-left)); width: min(330px, calc(100vw - 196px)); font-size: 13px; }
+  #log div { margin-top: 2px; } #log b { font-weight: 800; }
+  #event { top: calc(max(10px, env(safe-area-inset-top)) + 58px); right: max(12px, env(safe-area-inset-right)); max-width: 60vw; padding: 4px 10px; border-radius: 10px; background: #ffc83dd9; color: #3a2400; font-size: 13px; font-weight: 800; text-shadow: none; }
+  #event:empty { display: none; }
+  #top { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); display: flex; gap: 8px; }
+  #status { left: 16px; right: 16px; top: 24%; text-align: center; font-size: 24px; font-weight: 800; transition: opacity .25s; }
+  #status small { display: block; margin-top: 2px; font-size: 15px; font-weight: 600; opacity: .92; }
+  #status.bite { color: #ffe066; font-size: 40px; animation: pulse .35s ease-in-out infinite alternate; }
+  @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+  #toast { left: 16px; right: 16px; top: 15%; text-align: center; font-size: 17px; font-weight: 800; color: #ffe8a8; opacity: 0; transition: opacity .4s; }
+  #toast.on { opacity: 1; }
+  #meter { left: 50%; transform: translateX(-50%); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 178px); width: min(300px, calc(100vw - 48px)); }
+  #meter .lbl { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 3px; }
+  .bar { position: relative; height: 18px; border-radius: 10px; border: 2px solid #fffc; background: #0005; overflow: hidden; box-sizing: border-box; }
+  #powerFill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #ffd27a, #ff8a4c 70%, #ff4d6d); }
+  #tensionBar { background: linear-gradient(90deg, #52d273 0 55%, #ffd23f 55% 80%, #ff4d4d 80%); }
+  #needle { position: absolute; top: -2px; bottom: -2px; width: 6px; margin-left: -3px; border-radius: 3px; background: #fff; box-shadow: 0 0 6px #000a; left: 0; }
+  #lineBar { margin-top: 6px; height: 12px; background: #2a5a7acc; }
+  #fishDot { position: absolute; top: -5px; font-size: 16px; margin-left: -9px; left: 100%; text-shadow: none; }
+  #act { position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px); width: 96px; height: 96px; border-radius: 50%;
+         border: 3px solid #fff; background: radial-gradient(circle at 35% 30%, #ffb27a, #ff7a45); color: #fff; font: 900 16px system-ui, sans-serif; text-shadow: 0 1px 2px #0006;
+         box-shadow: 0 4px 14px #0005; touch-action: none; cursor: pointer; }
+  #act.on { transform: scale(.94); filter: brightness(1.15); }
+  #act.bite { background: radial-gradient(circle at 35% 30%, #fff38a, #ffc21a); color: #5a3a00; text-shadow: none; }
+  #spots { position: fixed; left: max(14px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 64px); display: flex; gap: 8px; }
+  #bar { position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 8px; width: min(460px, calc(100vw - 24px)); }
+  button.r { min-width: 48px; min-height: 48px; border: 0; border-radius: 14px; background: #ffffffe0; color: #2a2238; font: 700 19px system-ui, sans-serif; box-shadow: 0 2px 6px #0003; cursor: pointer; touch-action: manipulation; }
+  #say { flex: 1; min-width: 0; height: 48px; border: 0; border-radius: 14px; padding: 0 14px; font: 500 16px system-ui, sans-serif; background: #ffffffe0; box-shadow: 0 2px 6px #0003; outline: none; color: #2a2238; }
+  #wheel { position: fixed; inset: 0; display: grid; place-items: center; background: #0003; }
+  #wheel div { position: relative; width: 240px; height: 240px; border-radius: 50%; background: #ffffffcc; box-shadow: 0 6px 20px #0004; }
+  #wheel button { position: absolute; width: 84px; height: 84px; margin: -42px; border: 0; border-radius: 50%; background: #fff; font: 700 13px system-ui, sans-serif; color: #2a2238; box-shadow: 0 2px 6px #0003; cursor: pointer; }
+  #wheel button span { display: block; font-size: 30px; line-height: 1.1; }
+  .panel { position: fixed; inset: 0; display: grid; place-items: center; background: #2a183a66; }
+  .card { width: min(380px, calc(100vw - 32px)); max-height: 86vh; overflow: auto; box-sizing: border-box; padding: 18px; border-radius: 18px; background: #fffaf4; color: #2a2238; box-shadow: 0 10px 30px #0005; text-shadow: none; }
+  .card h2 { margin: 0 0 8px; font-size: 21px; }
+  .card h3 { margin: 14px 0 4px; font-size: 14px; color: #b0562e; }
+  .card ol { margin: 0; padding-left: 26px; font-size: 14px; text-align: left; }
+  .card li span { float: right; font-variant-numeric: tabular-nums; }
+  .card li.me { color: #d0562e; font-weight: 800; }
+  .card p { margin: 6px 0; font-size: 14px; color: #5a5068; }
+  .card label { display: block; margin: 12px 0 6px; font-size: 13px; font-weight: 700; color: #6a6078; }
+  .card input { width: 100%; box-sizing: border-box; height: 44px; border: 2px solid #eadfd6; border-radius: 12px; padding: 0 12px; font: 600 16px system-ui, sans-serif; }
+  .go { width: 100%; min-height: 48px; margin-top: 14px; border: 0; border-radius: 14px; background: #ff7a45; color: #fff; font: 800 17px system-ui, sans-serif; cursor: pointer; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opts button { min-width: 44px; min-height: 44px; border-radius: 12px; border: 3px solid #eee3da; background: #f8f1ea; font-size: 22px; padding: 0 6px; cursor: pointer; }
+  .opts button.on { border-color: #2a2238; }
+  #catchCard { text-align: center; }
+  #catchCard canvas { width: 100%; aspect-ratio: 2 / 1; border-radius: 14px; background: radial-gradient(circle, #fff3dc, #ffe1c2); }
+  #catchName { font-size: 23px; font-weight: 900; margin-top: 6px; }
+  .chip { display: inline-block; padding: 2px 10px; border-radius: 10px; color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+  #catchKg { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; margin: 4px 0; }
+  #catchTags span { display: inline-block; margin: 2px 3px; padding: 3px 9px; border-radius: 10px; background: #ffe4b8; color: #8a4a12; font-size: 13px; font-weight: 800; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .fish { padding: 6px; border-radius: 12px; background: #f6ece2; text-align: center; font-size: 12px; line-height: 1.25; }
+  .fish canvas { width: 100%; aspect-ratio: 2 / 1; }
+  .fish b { display: block; font-size: 12px; } .fish i { font-style: normal; color: #7a6e86; }
+  @media (max-width: 520px) { #toast { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 240px); font-size: 15px; } #status { font-size: 21px; } }
+  [hidden] { display: none !important; }
+  .attract .hud, .attract #top, .attract #bar, .attract #spots, .attract #act, .attract .tag .name { display: none !important; }
+</style>
+<script src="https://cdn.multiplayeragent.com/sdk/mp.global.js"></script>
+<script type="importmap">{ "imports": { "three": "./libs/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="tags"></div>
+<div class="hud" id="net">Connecting…</div>
+<div class="hud" id="log"></div>
+<div class="hud" id="event"></div>
+<div class="hud" id="toast"></div>
+<div class="hud" id="status"></div>
+<div class="hud" id="meter" hidden>
+  <div class="lbl"><span id="meterL"></span><span id="meterR"></span></div>
+  <div class="bar" id="powerBar"><div id="powerFill"></div></div>
+  <div class="bar" id="tensionBar"><div id="needle"></div></div>
+  <div class="bar" id="lineBar"><span id="fishDot">🐟</span></div>
+</div>
+<div id="top"><button class="r" id="logBtn" title="Fish log">📖</button><button class="r" id="boardBtn" title="Biggest catches">🏆</button><button class="r" id="lookBtn" title="Your look">👕</button></div>
+<div id="spots"><button class="r" id="prevSpot" title="Move left (A)">◀</button><button class="r" id="nextSpot" title="Move right (D)">▶</button></div>
+<button id="act">CAST</button>
+<div id="bar"><button class="r" id="emoteBtn" title="Emotes (E)">😀</button><input id="say" maxlength="80" placeholder="Say something…" enterkeyhint="send" autocomplete="off"></div>
+<div id="wheel" hidden><div></div></div>
+<div class="panel" id="catchPanel" hidden><div class="card" id="catchCard">
+  <canvas id="catchFish" width="400" height="200"></canvas>
+  <div id="catchName"></div><span class="chip" id="catchRarity"></span>
+  <div id="catchKg"></div><div id="catchTags"></div><p id="catchRank"></p>
+  <div id="catchTop" hidden><h3>Biggest catches</h3><ol id="catchBoard"></ol></div>
+  <button class="go" id="catchGo">Keep fishing</button>
+</div></div>
+<div class="panel" id="logPanel" hidden><div class="card">
+  <h2 id="logTitle">Fish log</h2><p id="logSub"></p><div class="grid" id="logGrid"></div>
+  <button class="go" id="logClose">Back to fishing</button>
+</div></div>
+<div class="panel" id="boardPanel" hidden><div class="card">
+  <h2>Biggest catches</h2><ol id="board"><li>Loading…</li></ol><p id="myBest"></p>
+  <button class="go" id="boardClose">Back to fishing</button>
+</div></div>
+<div class="panel" id="lookPanel" hidden><div class="card">
+  <h2>How do you look?</h2>
+  <label for="nameIn">Name</label><input id="nameIn" maxlength="16" autocomplete="off">
+  <label>Color</label><div class="opts" id="colorOpts"></div>
+  <label>Hat</label><div class="opts" id="hatOpts"></div>
+  <button class="go" id="lookGo">Done</button>
+</div></div>
+<script type="module">
+/* ═══ CHILL FISHING · a Multiplayer Agent starter ═══════════════════════════════════════
+ * Cast, wait for the bobber, reel it in. Drop-in, 2–16 players; friendly bots fish beside you.
+ *
+ * WHERE THINGS ARE (search for the "── " headers):
+ *   CONFIG ........ timings, how the reel feels, bots, colors, hats, the bots' lines
+ *   FISH .......... the 12 species and 5 rarities, how a bite picks a fish, the fish drawings
+ *   CONNECTION .... MP_CONNECT, joining, the offline room, who is host, live ops
+ *   LAKE .......... sky, sun, water, the dock and its 16 spots, the shore, ripples and sparkles
+ *   ANGLERS ....... the avatar, rod, line and bobber; pose() turns a fishing state into a picture
+ *   BOTS (HOST) ... bots fishing, chatting and giving way to people. Only the host runs them.
+ *   ME ............ casting, the bite, reeling against the tension meter, walking between spots
+ *   SAVES ......... your fish log (a player save) and the biggest-catch leaderboard
+ *   CHAT & PANELS . chat log, bubbles, emotes, the catch card, fish log, leaderboard, your look
+ *   INPUT ......... the big button, Space, mouse and touch, spot arrows, keys
+ *
+ * HOW THE MULTIPLAYER WORKS (a relay room: no server code):
+ *   - Fishing is personal: your bites, your reel and your catch happen in your own browser,
+ *     so there is nothing shared to fight over and nothing for a host to decide.
+ *   - Each player writes its OWN entity: `a` (one JSON field: spot, position, facing, emote,
+ *     and the fishing state with its start time, bobber spot, line length and the fish) when
+ *     it changes and ~10 times a second while reeling; `look` (name, color, hat); `say` (your
+ *     last chat line, so people who arrive later still see it) and `hb` (heartbeat) once a second.
+ *   - Everyone draws everyone from those states: the cast arc, the nibbles, the bite and the
+ *     fish held up are worked out from the state's start time, so all screens agree.
+ *   - A chat line is also an event, "chat" {t, k}, so everyone gets it at once.
+ *   - The HOST is the lowest sessionId among live players (heartbeat seen in the last 3s),
+ *     worked out every frame. Only the host writes the shared field `bots` (each bot's spot,
+ *     look, fishing state with timestamps, and last line). A new host adopts the bots with
+ *     their timestamps and carries on from real time.
+ *   - Spots: each angler stands on one of 16 spots. Two people on one spot: the one with the
+ *     higher sessionId moves on. Bots give way to people.
+ *   - Saves: your fish log is a player save (namespace CONFIG.saveNs); offline, this browser.
+ *   - Leaderboard "biggest-catch": each player's heaviest fish, in grams.
+ *   - Live ops: `rareBoost` and `biteWindowMs` can be changed live; running events show top right.
+ *   - ?attract plays offline with bots only (the preview video is recorded from it).
+ */
+import * as THREE from "three";
+
+// ── CONFIG ──────────────────────────────────────────────────────────────────────────
+const CONFIG = {
+  seats: 6,                 // bots fill the dock up to this many anglers (10 bots at most fit in their shared field)
+  board: "biggest-catch",   // leaderboard: each player's heaviest fish, in grams
+  saveNs: "chill-fishing",  // player-save namespace for your fish log
+  powerHz: 0.8,             // the cast meter swings full and back this many times a second
+  castMin: 7, castMax: 25,  // how far the bobber lands at no power and full power
+  flightMs: 650,            // ms the bobber flies
+  waitMs: [2500, 8000],     // ms from the bobber landing to the bite
+  biteWindowMs: 900,        // ms you have to hook it after the bobber dunks
+  reelSpeed: 0.24,          // share of the line you reel in per second
+  slackPull: 0.05,          // share of the line the fish takes back per second while you let go
+  tensionRise: 0.12,        // tension per second while reeling a calm fish...
+  runRise: 1.5,             // ...and while it is pulling (plus up to 1 more for a fighter)
+  tensionFall: 0.9,         // tension per second while you let go
+  snapAfterMs: 380,         // ms in the red before the line snaps
+  holdMs: 2800,             // ms you hold your catch up for everyone to see
+  rareBoost: 1,             // multiplies the odds of Rare and better (live ops can raise it)
+  walkSpeed: 4.5,
+  bubbleMs: 7000, chatGapMs: 900,
+  botWaitMs: [3000, 9000], botReelMs: [2500, 5500], botCatch: 0.72, botTalk: [9000, 20000],
+  botLines: ["The lake is so calm tonight", "Look at that sunset 🌅", "Anyone caught a Moonfin yet?", "Patience is the whole trick 🎣",
+    "Far casts find the rare ones", "Let go when it pulls, or snap!", "I could fish here all evening", "Shh… I think I've got a nibble",
+    "My grandpa fished off this dock", "Fireflies are out ✨", "Ghost Koi like the deep water", "This is my lucky spot"],
+  greet: ["Hi {name}! 👋 Grab a spot", "Welcome to the dock, {name}!", "Hey {name}, the fish are biting 🎣"],
+  cheer: ["Whoa, a {fish}! 🤩", "Nice {fish}, {name}!", "Is that a {fish}?! 👏", "Great catch, {name}!"],
+  camDist: 7.5, camHeight: 4.6,
+};
+const BOT_NAMES = ["Pip", "Marlo", "Juniper", "Biscuit", "Hazel", "Otis", "Clover", "Nova", "Pebble", "Willow", "Tofu", "Rusty", "Bean", "Ziggy", "Sunny", "Mochi"];
+const COLORS = ["#ff7a59", "#4da6ff", "#ffd23f", "#52d273", "#c77dff", "#ff6fb5", "#3de0d0", "#a0785a", "#ff4d6d", "#8bd450", "#ffa94d", "#7b8cff", "#f2f2f2", "#2fb7a0", "#e05ad1", "#5a6b8c"];
+const HATS = { bucket: "🎣", cap: "🧢", straw: "👒", beanie: "🧶", party: "🥳", none: "🚫" };
+const EMOTES = { wave: "👋", cheer: "🙌", dance: "💃", sit: "🪑" };
+
+// ── FISH ────────────────────────────────────────────────────────────────────────────
+// r = rarity, kg = weight range, c = [back, belly, fins], pat = pattern, shape = body,
+// fight = how hard it pulls (0–1), deep = the cast distance it likes (0 near, 1 far).
+const FISH = [
+  { id: "perch",   name: "Sunny Perch",    r: 0, kg: [0.2, 0.9], c: ["#d9952e", "#fbe7a6", "#e2683c"], pat: "bars",    shape: "round",   fight: 0.2, deep: 0 },
+  { id: "minnow",  name: "Reed Minnow",    r: 0, kg: [0.05, 0.3], c: ["#7fa89c", "#eef4ea", "#9cc4b8"], pat: "line",   shape: "slim",    fight: 0.1, deep: 0.1 },
+  { id: "carp",    name: "Mud Carp",       r: 0, kg: [1, 4.5], c: ["#8c7a4c", "#e3d2a0", "#a5854b"], pat: "scales",    shape: "round",   fight: 0.4, deep: 0.3 },
+  { id: "bass",    name: "Striped Bass",   r: 1, kg: [0.8, 3.2], c: ["#5d7f5a", "#e6eadc", "#4e6b48"], pat: "stripes", shape: "long",    fight: 0.5, deep: 0.4 },
+  { id: "trout",   name: "Rainbow Trout",  r: 1, kg: [0.5, 2.6], c: ["#7c9a7a", "#f6efe4", "#e88aa0"], pat: "rainbow", shape: "long",    fight: 0.5, deep: 0.5 },
+  { id: "catfish", name: "Copper Catfish", r: 1, kg: [1.5, 7], c: ["#b0703a", "#f0d6b4", "#8a5228"], pat: "plain",     shape: "whisker", fight: 0.6, deep: 0.6 },
+  { id: "koi",     name: "Ghost Koi",      r: 2, kg: [1, 5], c: ["#f4f1ea", "#ffffff", "#f08a4b"], pat: "patches",     shape: "round",   fight: 0.5, deep: 0.5 },
+  { id: "pike",    name: "Spotted Pike",   r: 2, kg: [2, 9], c: ["#556b3b", "#dfe5c2", "#7d8f45"], pat: "spots",       shape: "slim",    fight: 0.75, deep: 0.7 },
+  { id: "lantern", name: "Lanternfish",    r: 2, kg: [0.3, 1.2], c: ["#283a6b", "#6b84c9", "#ffd36b"], pat: "glow",    shape: "round",   fight: 0.45, deep: 0.9 },
+  { id: "sunfish", name: "Golden Sunfish", r: 3, kg: [1.5, 6], c: ["#f4b81c", "#ffe58a", "#ff8c1a"], pat: "shine",     shape: "disc",    fight: 0.7, deep: 0.6 },
+  { id: "eel",     name: "Twilight Eel",   r: 3, kg: [1, 5.5], c: ["#4b2f6e", "#a98bd6", "#ff7ab6"], pat: "line",      shape: "eel",     fight: 0.85, deep: 0.85 },
+  { id: "moonfin", name: "Moonfin",        r: 4, kg: [3, 12], c: ["#9fb8f0", "#ffffff", "#7fa0ff"], pat: "stars",      shape: "fancy",   fight: 1, deep: 1 },
+];
+const RARITY = [
+  { name: "Common", color: "#8f9bab", w: 60 }, { name: "Uncommon", color: "#3fbf62", w: 26 }, { name: "Rare", color: "#3b8fe8", w: 10 },
+  { name: "Epic", color: "#a85de0", w: 3.2 }, { name: "Legendary", color: "#f0a800", w: 0.8 },
+];
+/** Which fish bit: rarer with a far cast (depth 0–1). `rand` is Math.random or a seeded one. */
+function rollFish(depth, rand) {
+  const weights = RARITY.map((r, i) => r.w * (1 + depth * i * 0.9) * (i >= 2 ? liveCfg("rareBoost") : 1));
+  let x = rand() * weights.reduce((a, b) => a + b, 0), r = 0;
+  while (x > weights[r] && r < RARITY.length - 1) x -= weights[r++];
+  const pool = FISH.map((f, i) => ({ f, i })).filter((o) => o.f.r === r), fw = pool.map((o) => 1.2 - Math.abs(o.f.deep - depth));
+  let y = rand() * fw.reduce((a, b) => a + b, 0), k = 0;
+  while (y > fw[k] && k < pool.length - 1) y -= fw[k++];
+  const f = pool[k].f, kg = f.kg[0] + (f.kg[1] - f.kg[0]) * Math.min(1, Math.pow(rand(), 1.8) + depth * 0.12);
+  return { f: pool[k].i, kg: Math.round(kg * 100) / 100 };
+}
+const an = (word) => (/^[AEIOU]/i.test(word) ? "an " : "a ") + word;
+const kgText = (kg) => (kg < 1 ? Math.round(kg * 1000) + " g" : kg.toFixed(2) + " kg");
+
+// The fish drawings: one canvas routine, used for the catch card, the log and the 3D sprites.
+const SHAPES = { // h = body height / length, t = tail size, fin = top fin size
+  slim: { h: 0.3, t: 0.9, fin: 0.7 }, long: { h: 0.36, t: 1, fin: 0.9 }, round: { h: 0.52, t: 0.9, fin: 1 }, disc: { h: 0.75, t: 0.8, fin: 1.1 },
+  eel: { h: 0.17, t: 0.5, fin: 0.45 }, whisker: { h: 0.36, t: 0.9, fin: 0.8 }, fancy: { h: 0.46, t: 1.5, fin: 1.7 },
+};
+function drawFish(c, f, W, H, dark) {
+  const sh = SHAPES[f.shape], x0 = W * 0.22, x1 = W * 0.95, L = x1 - x0, cy = H * 0.52, hh = Math.min(H * 0.3, (L * sh.h) / 2);
+  const ink = dark ? "#3a3f55" : null, [back, belly, fin] = f.c, seeded = mulberry32(f.id.length * 97 + f.id.charCodeAt(0));
+  c.save(); c.lineJoin = "round";
+  if (!dark && f.r >= 3) { c.shadowColor = fin; c.shadowBlur = W * 0.06; }
+  // fins first, so the body covers their roots
+  const fs = hh * sh.fin * 0.75, ts = Math.min(hh * sh.t * 1.3, x0 * 0.95, H * 0.46);
+  c.fillStyle = ink || fin;
+  const tail = new Path2D(), tx = x0 + L * 0.05;
+  tail.moveTo(tx, cy); tail.quadraticCurveTo(x0 - ts * 0.4, cy - ts * 0.25, x0 - ts * 0.9, cy - ts);
+  tail.quadraticCurveTo(x0 - ts * 0.5, cy, x0 - ts * 0.9, cy + ts); tail.quadraticCurveTo(x0 - ts * 0.4, cy + ts * 0.25, tx, cy); c.fill(tail);
+  const top = new Path2D();
+  top.moveTo(x0 + L * (f.shape === "eel" ? 0.05 : 0.28), cy - hh * 0.85);
+  top.quadraticCurveTo(x0 + L * 0.42, cy - hh - fs * 1.3, x0 + L * (f.shape === "eel" ? 0.85 : 0.64), cy - hh * 0.9); c.fill(top);
+  const low = new Path2D();
+  low.moveTo(x0 + L * 0.38, cy + hh * 0.8); low.quadraticCurveTo(x0 + L * 0.44, cy + hh + fs * (f.shape === "fancy" ? 1.4 : 0.6), x0 + L * 0.56, cy + hh * 0.85); c.fill(low);
+  c.shadowBlur = 0;
+  // the body
+  const body = new Path2D();
+  body.moveTo(x1, cy + hh * 0.08);
+  body.bezierCurveTo(x1 - L * 0.1, cy - hh * 1.05, x0 + L * 0.35, cy - hh * 1.15, x0, cy - hh * 0.22);
+  body.lineTo(x0, cy + hh * 0.22);
+  body.bezierCurveTo(x0 + L * 0.35, cy + hh * 1.12, x1 - L * 0.12, cy + hh * 0.95, x1, cy + hh * 0.08); body.closePath();
+  if (dark) { c.fillStyle = ink; c.fill(body); c.restore(); return; }
+  const g = c.createLinearGradient(0, cy - hh, 0, cy + hh); g.addColorStop(0, back); g.addColorStop(0.55, back); g.addColorStop(0.75, belly); g.addColorStop(1, belly);
+  c.fillStyle = g; c.fill(body);
+  c.save(); c.clip(body);
+  const P = f.pat;
+  if (P === "bars") { c.fillStyle = "#0000002e"; for (let i = 0; i < 5; i++) c.fillRect(x0 + L * (0.22 + i * 0.12), cy - hh * 1.2, L * 0.05, hh * 1.6); }
+  if (P === "stripes") { c.strokeStyle = "#1f2a1c80"; c.lineWidth = Math.max(1.5, H * 0.02); for (const k of [-0.55, -0.2, 0.15]) { c.beginPath(); c.moveTo(x0, cy + hh * k); c.lineTo(x1 - L * 0.12, cy + hh * k); c.stroke(); } }
+  if (P === "line" || P === "rainbow") { c.strokeStyle = P === "rainbow" ? "#ff8fb0cc" : fin; c.lineWidth = P === "rainbow" ? hh * 0.35 : Math.max(2, hh * 0.12); c.beginPath(); c.moveTo(x0, cy); c.quadraticCurveTo(x0 + L * 0.5, cy - hh * 0.12, x1 - L * 0.08, cy - hh * 0.05); c.stroke(); }
+  if (P === "rainbow") { c.fillStyle = "#2a3a2a66"; for (let i = 0; i < 26; i++) c.fillRect(x0 + seeded() * L * 0.85, cy - hh * (0.3 + seeded() * 0.7), 2, 2); }
+  if (P === "scales") { c.strokeStyle = "#00000024"; c.lineWidth = 1.5; const s = L * 0.06; for (let x = x0 + s; x < x1 - s * 2; x += s) for (let y = cy - hh; y < cy + hh; y += s * 0.9) { c.beginPath(); c.arc(x + ((y / s) % 2) * s * 0.5, y, s * 0.55, -1.2, 1.2); c.stroke(); } }
+  if (P === "spots") { c.fillStyle = "#fff4c4d0"; for (let i = 0; i < 26; i++) { c.beginPath(); c.arc(x0 + seeded() * L * 0.85, cy - hh + seeded() * hh * 1.5, 1.5 + seeded() * hh * 0.09, 0, 7); c.fill(); } }
+  if (P === "patches") { c.fillStyle = fin; for (const [px, py, pr] of [[0.25, -0.4, 0.42], [0.55, -0.6, 0.38], [0.8, -0.2, 0.25]]) { c.beginPath(); c.ellipse(x0 + L * px, cy + hh * py, hh * pr * 1.4, hh * pr, 0.3, 0, 7); c.fill(); } c.fillStyle = "#222"; c.beginPath(); c.ellipse(x0 + L * 0.42, cy - hh * 0.1, hh * 0.18, hh * 0.12, 0, 0, 7); c.fill(); }
+  if (P === "glow") { c.fillStyle = fin; c.shadowColor = fin; c.shadowBlur = hh * 0.5; for (let i = 0; i < 7; i++) { c.beginPath(); c.arc(x0 + L * (0.15 + i * 0.11), cy + hh * 0.45, hh * 0.09, 0, 7); c.fill(); } c.shadowBlur = 0; }
+  if (P === "shine" || P === "stars") { c.strokeStyle = "#ffffffaa"; c.lineWidth = hh * 0.12; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(x0 + L * (0.3 + i * 0.16), cy - hh); c.lineTo(x0 + L * (0.2 + i * 0.16), cy + hh); c.stroke(); } }
+  if (P === "stars") { c.fillStyle = "#ffffff"; for (let i = 0; i < 18; i++) { const sx = x0 + seeded() * L * 0.85, sy = cy - hh + seeded() * hh * 1.8, r = 1 + seeded() * hh * 0.07; c.fillRect(sx - r * 2, sy - 0.6, r * 4, 1.2); c.fillRect(sx - 0.6, sy - r * 2, 1.2, r * 4); } }
+  c.restore();
+  // pectoral fin, gill, eye, mouth, whiskers
+  c.fillStyle = fin + "cc"; c.beginPath(); c.ellipse(x1 - L * 0.34, cy + hh * 0.25, hh * 0.32, hh * 0.15, 0.5, 0, 7); c.fill();
+  c.strokeStyle = "#00000040"; c.lineWidth = Math.max(1.5, H * 0.015); c.beginPath(); c.arc(x1 - L * 0.12, cy, hh * 0.75, 2.3, 3.9); c.stroke();
+  const er = Math.max(3, hh * 0.17), ex = x1 - L * 0.1, ey = cy - hh * 0.25;
+  c.fillStyle = "#fff"; c.beginPath(); c.arc(ex, ey, er, 0, 7); c.fill();
+  c.fillStyle = "#1d1a28"; c.beginPath(); c.arc(ex + er * 0.15, ey, er * 0.62, 0, 7); c.fill();
+  c.fillStyle = "#fff"; c.beginPath(); c.arc(ex + er * 0.35, ey - er * 0.3, er * 0.22, 0, 7); c.fill();
+  c.strokeStyle = "#00000066"; c.beginPath(); c.moveTo(x1 - L * 0.02, cy + hh * 0.18); c.lineTo(x1 - L * 0.07, cy + hh * 0.22); c.stroke();
+  if (f.shape === "whisker") { c.strokeStyle = "#3a2410"; c.lineWidth = 1.5; for (const k of [-1, 1]) { c.beginPath(); c.moveTo(x1 - L * 0.03, cy + hh * 0.1); c.quadraticCurveTo(x1 + L * 0.02, cy + hh * (0.6 + k * 0.3), x1 - L * 0.08, cy + hh * (1.1 + k * 0.2)); c.stroke(); } }
+  c.strokeStyle = "#00000038"; c.lineWidth = Math.max(1.5, H * 0.012); c.stroke(body);
+  c.restore();
+}
+
+// ── CONNECTION ──────────────────────────────────────────────────────────────────────
+// The builder fills these in for this game. Downloaded from GitHub? Put your own pk_ key here.
+const MP_CONNECT = {
+  key: 'pk_REPLACE_ME',
+  room: 'chill-fishing',
+  endpoint: 'wss://live.multiplayeragent.com',
+  apiUrl: 'https://api.multiplayeragent.com',
+};
+const ATTRACT = new URLSearchParams(location.search).has("attract");
+const TEST = new URLSearchParams(location.search).has("test");
+if (ATTRACT) Object.assign(CONFIG, { seats: 8, botWaitMs: [1200, 3800], botReelMs: [1600, 3000], botCatch: 0.85, holdMs: 2400, botTalk: [6000, 12000] });
+
+/** Same shape as the SDK client, kept in this tab: offline play and ?attract. */
+function localRoom() {
+  const id = "local", state = { entities: { players: { [id]: {} } }, shared: {} }, subs = [];
+  let queued = false;
+  const emit = () => { if (!queued) { queued = true; queueMicrotask(() => { queued = false; subs.forEach((f) => f(state)); }); } };
+  const put = (o, k, v) => { if (typeof k === "object") Object.assign(o, k); else o[k] = v; emit(); };
+  return {
+    sessionId: id, state, offline: true, live: { config: {}, active: [] },
+    me: { set: (k, v) => put(state.entities.players[id], k, v) },
+    setShared: (k, v) => put(state.shared, k, v),
+    onState: (f) => { subs.push(f); f(state); }, onJoin() {}, onLeave() {}, on() {}, send() {}, onLive() {},
+    onDisconnect() {}, onReconnect() {}, leave: async () => {},
+  };
+}
+async function connect() {
+  if (ATTRACT || typeof MP === "undefined") return localRoom();
+  try {
+    const mp = await Promise.race([MP.join({ ...MP_CONNECT }), new Promise((_, no) => setTimeout(() => no(new Error("timed out")), 10000))]);
+    window.mp = mp; // the builder calls window.mp.leave() when the page closes
+    return mp;
+  } catch (e) {
+    console.warn("Playing offline:", e && e.message);
+    return localRoom();
+  }
+}
+const parse = (v, fb) => { if (typeof v !== "string") return fb; try { return JSON.parse(v); } catch { return fb; } };
+const cache = new Map();
+/** A JSON field (shared or a player's), parsed once per change. Read-only. */
+function field(key, raw, fb) { const m = cache.get(key); if (m && m.raw === raw) return m.v; const v = parse(raw, fb); cache.set(key, { raw, v }); return v; }
+let net = null, S = { entities: { players: {} }, shared: {} }, reconnecting = false;
+const seenHb = new Map();
+function livePlayers() {
+  const now = performance.now(), out = [];
+  for (const [id, p] of Object.entries(S.entities.players || {})) {
+    const s = seenHb.get(id);
+    if (!s || s.hb !== p.hb) seenHb.set(id, { hb: p.hb, at: now });
+    if (id === net.sessionId || now - seenHb.get(id).at < 3000) out.push(id);
+  }
+  return out.sort();
+}
+const isHost = () => livePlayers()[0] === net.sessionId;
+/** A live-ops tunable: the owner's live config if it has one of the right type, else CONFIG. */
+function liveCfg(k) { const v = net && net.live && net.live.config ? net.live.config[k] : undefined; return typeof v === typeof CONFIG[k] ? v : CONFIG[k]; }
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const rnd = (a, b) => a + Math.random() * (b - a), pick = (list) => list[Math.floor(Math.random() * list.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ── LAKE ────────────────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog("#f2a983", 70, 640);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 2000);
+function fit() { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener("resize", fit); addEventListener("orientationchange", fit); fit();
+function canvasTex(w, h, paint, rx, ry) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h; paint(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  if (rx) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); }
+  return t;
+}
+const mat = (color, more) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...more });
+const add = (geo, m, x, y, z, shadow = true) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = shadow; o.receiveShadow = true; scene.add(o); return o; };
+const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), SC = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), E = new THREE.Euler();
+
+// Sky: a gradient dome, a low sun with a soft glow, and lights to match golden hour.
+const SUN = new THREE.Vector3(-0.22, 0.085, -1).normalize();
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, depthWrite: false, map: canvasTex(4, 512, (c, w, h) => {
+  const g = c.createLinearGradient(0, 0, 0, h);
+  for (const [s, col] of [[0, "#1d2660"], [0.22, "#40408c"], [0.36, "#9a5aa0"], [0.44, "#f07e86"], [0.48, "#ffb070"], [0.5, "#ffd89a"], [0.51, "#f2a983"], [1, "#f2a983"]]) g.addColorStop(s, col);
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+}) })));
+const glowTex = canvasTex(128, 128, (c, w) => { const g = c.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, "#fffbe8"); g.addColorStop(0.14, "#fff0b8"); g.addColorStop(0.2, "#ffd28acc"); g.addColorStop(0.45, "#ffa06a44"); g.addColorStop(1, "#ff906a00"); c.fillStyle = g; c.fillRect(0, 0, w, w); });
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, fog: false, depthWrite: false, transparent: true }));
+sunGlow.scale.setScalar(520); sunGlow.position.copy(SUN).multiplyScalar(1300); scene.add(sunGlow);
+scene.add(new THREE.HemisphereLight("#ffd2b0", "#5a4a7a", 1.25));
+const sun = new THREE.DirectionalLight("#ffb46e", 2.6);
+sun.position.copy(SUN).multiplyScalar(70).add(new THREE.Vector3(0, 6, -6)); sun.target.position.set(0, 0, -6);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
+Object.assign(sun.shadow.camera, { left: -28, right: 28, top: 28, bottom: -28, near: 1, far: 160 });
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight("#9fb4ff", 0.6); fill.position.set(12, 14, 30); scene.add(fill);
+
+// Water: low-poly waves near the dock (flat shading catches the sun), a calm plane beyond.
+const waterMat = new THREE.MeshStandardMaterial({ color: "#3d6f95", roughness: 0.22, metalness: 0.25, flatShading: true });
+const waterGeo = new THREE.PlaneGeometry(300, 300, 96, 96).rotateX(-Math.PI / 2).translate(0, 0, -70);
+const water = new THREE.Mesh(waterGeo, waterMat); water.receiveShadow = true; scene.add(water);
+const wpos = waterGeo.attributes.position, wbase = Float32Array.from(wpos.array);
+add(new THREE.PlaneGeometry(5000, 5000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: "#3d6f95", roughness: 0.3, metalness: 0.25 }), 0, -0.14, 0, false);
+const waveAmp = (z) => 0.05 + 0.17 * clamp((8 - z) / 40, 0, 1); // calmer near the shore
+const waveH = (x, z, t) => waveAmp(z) * (Math.sin(x * 0.31 + t * 1.3) * 0.6 + Math.sin(z * 0.43 - t * 1.05 + x * 0.12) * 0.5 + Math.sin((x + z) * 0.9 + t * 2.2) * 0.2);
+function animateWater(t) { const a = wpos.array; for (let i = 0; i < a.length; i += 3) a[i + 1] = waveH(wbase[i], wbase[i + 2], t); wpos.needsUpdate = true; }
+// Sparkles on the sun's path across the water.
+const glitTex = canvasTex(128, 512, (c, w, h) => { for (let i = 0; i < 900; i++) { const x = Math.random() * w, y = Math.random() * h, fall = Math.exp(-(((x - w / 2) / (w * 0.22)) ** 2)) * Math.min(1, y / (h * 0.2)) * Math.min(1, (h - y) / (h * 0.15)); c.fillStyle = `rgba(255,230,170,${0.9 * fall})`; c.fillRect(x, y, 2 + Math.random() * 6, 1.4); } });
+glitTex.wrapT = THREE.RepeatWrapping;
+const glitter = new THREE.Mesh(new THREE.PlaneGeometry(46, 420).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glitTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0.85 }));
+const sunDir = new THREE.Vector2(SUN.x, SUN.z).normalize();
+glitter.position.set(sunDir.x * 225, 0.24, -16 + sunDir.y * 225); glitter.rotation.y = Math.atan2(sunDir.x, sunDir.y); scene.add(glitter);
+
+// Distant hills all round the lake, hazy in the evening light.
+const hills = new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 7), mat("#6b5684", { flatShading: true }), 46);
+for (let i = 0, s = mulberry32(5); i < 46; i++) {
+  const a = (i / 46) * Math.PI * 2 + s() * 0.1, r = 420 + s() * 160, h = 18 + s() * 34;
+  hills.setMatrixAt(i, M4.compose(V.set(Math.sin(a) * r, h / 2 - 3, Math.cos(a) * r - 40), Q.setFromAxisAngle(UP, s() * 3), SC.set(90 + s() * 70, h, 70 + s() * 60)));
+}
+scene.add(hills);
+// The shore: sand, grass, pines, a little shack and reeds.
+const grassTex = canvasTex(64, 64, (c, w, h) => { c.fillStyle = "#86a04c"; c.fillRect(0, 0, w, h); for (let i = 0; i < 420; i++) { c.fillStyle = Math.random() < 0.5 ? "#7a9444" : "#94ad58"; c.fillRect(Math.random() * w, Math.random() * h, 3, 3); } }, 60, 30);
+add(new THREE.BoxGeometry(600, 1, 300), mat("#ffffff", { map: grassTex }), 0, -0.1, 164, false);
+add(new THREE.BoxGeometry(600, 1, 6), mat("#e8c890"), 0, -0.32, 13.5, false);
+const pine1 = new THREE.InstancedMesh(new THREE.ConeGeometry(2.2, 4.5, 7), mat("#2f5a3a", { flatShading: true }), 70);
+const pine2 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 3.6, 7), mat("#3a6a42", { flatShading: true }), 70);
+const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.3, 0.4, 2, 6), mat("#6a4428"), 70);
+for (let i = 0, n = 0, s = mulberry32(9); n < 70 && i < 600; i++) {
+  const x = -90 + s() * 180, z = 19 + s() * 60;
+  if ((Math.abs(x) < 5 && z < 30) || (x > 3 && x < 13 && z < 26)) continue;
+  const k = 0.8 + s() * 0.9, ry = s() * 3;
+  trunk.setMatrixAt(n, M4.compose(V.set(x, 1 * k, z), Q.identity(), SC.set(k, k, k)));
+  pine1.setMatrixAt(n, M4.compose(V.set(x, 3.6 * k, z), Q.setFromAxisAngle(UP, ry), SC.set(k, k, k)));
+  pine2.setMatrixAt(n, M4.compose(V.set(x, 5.8 * k, z), Q.setFromAxisAngle(UP, ry), SC.set(k, k, k))); n++;
+}
+for (const m of [pine1, pine2, trunk]) { m.castShadow = true; scene.add(m); }
+const wood = mat("#a8714a"), darkWood = mat("#6e4630"), roof = mat("#8a3b34");
+add(new THREE.BoxGeometry(6, 3.2, 5), wood, 8, 1.6 + 0.4, 21);
+const roofGeo = new THREE.CylinderGeometry(0.01, 4.6, 2.2, 4, 1).rotateY(Math.PI / 4).scale(1, 1, 0.85);
+add(roofGeo, roof, 8, 4.7, 21);
+add(new THREE.BoxGeometry(1.4, 1, 0.1), new THREE.MeshBasicMaterial({ color: "#ffd77a" }), 6.3, 2.4, 18.45, false);
+add(new THREE.BoxGeometry(1.1, 2, 0.1), darkWood, 9.6, 1.4, 18.45, false);
+const reeds = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.03, 0.06, 1.8, 4), mat("#6f8a3e"), 220);
+for (let i = 0, s = mulberry32(13); i < 220; i++) {
+  let x = -40 + s() * 80; const z = 8.5 + s() * 4.5; if (Math.abs(x) < 3) x += 6 * Math.sign(x || 1);
+  reeds.setMatrixAt(i, M4.compose(V.set(x, 0.5, z), Q.setFromEuler(E.set((s() - 0.5) * 0.3, 0, (s() - 0.5) * 0.3)), SC.set(1, 0.6 + s() * 0.8, 1)));
+}
+scene.add(reeds);
+const pads = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.6, 0.6, 0.04, 10, 1, false, 0.4, 5.6), mat("#4f8a44"), 34);
+const padSpots = [];
+for (let i = 0, s = mulberry32(17); i < 34; i++) { let x = -26 + s() * 52; if (Math.abs(x) < 3.5) x += 7 * Math.sign(x || 1); padSpots.push({ x, z: 1 + s() * 7, r: s() * 6, k: 0.6 + s() * 0.7 }); }
+scene.add(pads);
+const blooms = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 8, 6), mat("#ff8fbf", { emissive: "#55203a" }), 12);
+scene.add(blooms);
+
+// The dock: a pier out from the shore and a wide T at the end. Deck top at DECK.
+const DECK = 0.85;
+const plank = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.12, 1), mat("#ffffff"), 110);
+let np = 0;
+const plankAt = (x, z, w, d) => { plank.setMatrixAt(np, M4.compose(V.set(x, DECK - 0.06, z), Q.identity(), SC.set(w, 1, d))); plank.setColorAt(np++, new THREE.Color().setHSL(0.07, 0.42, 0.42 + ((np * 37) % 9) * 0.012)); };
+for (let z = 17; z > -14; z -= 0.48) plankAt(0, z, 3.3, 0.43);
+for (let x = -9.5; x <= 9.5; x += 0.48) plankAt(x, -15.75, 0.43, 3.6);
+plank.count = np; plank.castShadow = plank.receiveShadow = true; scene.add(plank);
+const posts = [];
+for (let z = 15; z > -14; z -= 3.6) posts.push([-1.6, z], [1.6, z]);
+for (let x = -9.4; x <= 9.5; x += 3.76) posts.push([x, -17.45]);
+for (const x of [-9.4, -5.6, 5.6, 9.4]) posts.push([x, -14.1]);
+const post = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.17, 0.2, 3.4, 8), darkWood, posts.length);
+posts.forEach(([x, z], i) => post.setMatrixAt(i, M4.makeTranslation(x, DECK - 1.45, z)));
+post.castShadow = true; scene.add(post);
+add(new THREE.BoxGeometry(0.3, 0.3, 31), darkWood, -1.2, DECK - 0.27, 1.5); add(new THREE.BoxGeometry(0.3, 0.3, 31), darkWood, 1.2, DECK - 0.27, 1.5);
+add(new THREE.BoxGeometry(19.4, 0.3, 0.3), darkWood, 0, DECK - 0.27, -14.6); add(new THREE.BoxGeometry(19.4, 0.3, 0.3), darkWood, 0, DECK - 0.27, -16.9);
+// Lanterns on tall posts, glowing warm.
+const bulbMat = new THREE.MeshBasicMaterial({ color: "#ffe2a0" });
+for (const [x, z] of [[-9.4, -17.45], [9.4, -17.45], [-1.6, 4.2], [1.6, 11.4]]) {
+  add(new THREE.CylinderGeometry(0.11, 0.13, 2.4, 8), darkWood, x, DECK + 1.2, z);
+  add(new THREE.BoxGeometry(0.42, 0.5, 0.42), mat("#3b3340"), x, DECK + 2.55, z);
+  add(new THREE.SphereGeometry(0.17, 12, 8), bulbMat, x, DECK + 2.5, z, false);
+  const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55 }));
+  g.scale.setScalar(2.2); g.position.set(x, DECK + 2.5, z); scene.add(g);
+}
+const lamp = new THREE.PointLight("#ffc070", 7, 14, 1.6); lamp.position.set(0, DECK + 2.4, -16.5); scene.add(lamp);
+// A rowboat tied to the pier.
+const boat = new THREE.Group();
+const hull = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.7, 4.6, 12, 1, true, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2), mat("#3f7f9a", { side: THREE.DoubleSide }));
+hull.rotation.x = Math.PI; hull.position.y = 0.55; hull.castShadow = true; boat.add(hull);
+const seat = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.1, 0.5), wood); seat.position.y = 0.35; boat.add(seat);
+boat.position.set(3.4, 0, 7); boat.rotation.y = 0.12; scene.add(boat);
+
+/** The 16 fishing spots: where you stand (x, z), which way you face (h), the walkway point behind it (ax, az). */
+const SPOTS = [];
+for (const z of [3, -1.5, -6, -10.5]) SPOTS.push({ x: -1.15, z, h: -Math.PI / 2, ax: 0, az: z });
+SPOTS.push({ x: -9, z: -15.75, h: -Math.PI / 2, ax: -8, az: -15.75 });
+for (const x of [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5]) SPOTS.push({ x, z: -17, h: Math.PI, ax: x, az: -15.75 });
+SPOTS.push({ x: 9, z: -15.75, h: Math.PI / 2, ax: 8, az: -15.75 });
+for (const z of [-10.5, -6, -1.5, 3]) SPOTS.push({ x: 1.15, z, h: Math.PI / 2, ax: 0, az: z });
+const PREFERRED = [6, 9, 7, 8, 5, 10, 4, 11, 3, 12, 2, 13, 1, 14, 0, 15]; // the scenic end first
+/** The walk from (x, z) to spot `si`: along the pier and the T. */
+function routeTo(x, z, si) {
+  const sp = SPOTS[si], onT = (pz) => pz < -14.2, pts = [];
+  pts.push(onT(z) ? { x: clamp(x, -8, 8), z: -15.75 } : { x: 0, z: clamp(z, -15.75, 16) });
+  if (onT(z) !== onT(sp.az)) pts.push({ x: 0, z: -15.75 });
+  pts.push({ x: sp.ax, z: sp.az }, { x: sp.x, z: sp.z });
+  return pts;
+}
+const spotRings = SPOTS.map((sp) => { const m = add(new THREE.RingGeometry(0.42, 0.56, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: "#fff6d8", transparent: true, opacity: 0.4, depthWrite: false }), sp.x, DECK + 0.02, sp.z, false); m.visible = false; return m; });
+
+// Effects: ripples, sparkles and splashes, fireflies, birds, a fish that jumps now and then.
+const ripples = Array.from({ length: 24 }, () => { const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: "#fff", transparent: true, opacity: 0, depthWrite: false })); m.visible = false; scene.add(m); return { m, t: 1, life: 1, size: 1 }; });
+let rippleNext = 0;
+function ripple(x, z, size = 1, life = 1.2) { const r = ripples[rippleNext++ % ripples.length]; r.m.position.set(x, 0.26, z); Object.assign(r, { t: 0, life, size }); r.m.visible = true; }
+const PMAX = 300, parts = [];
+const partMesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.08, 0), new THREE.MeshBasicMaterial({ color: "#fff" }), PMAX);
+partMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PMAX * 3), 3); partMesh.frustumCulled = false; partMesh.count = 0; scene.add(partMesh);
+function burst(x, y, z, n, color, speed = 3, up = 3, gravity = 9) { const col = new THREE.Color(color); for (let i = 0; i < n && parts.length < PMAX; i++) parts.push({ x, y, z, vx: rnd(-speed, speed), vy: rnd(up * 0.4, up), vz: rnd(-speed, speed), life: rnd(0.5, 1.1), g: gravity, col }); }
+function effectsTick(dt, t) {
+  for (const r of ripples) if (r.m.visible) { r.t += dt / r.life; if (r.t >= 1) { r.m.visible = false; continue; } const s = r.size * (0.3 + r.t * 1.6); r.m.scale.set(s, 1, s); r.m.material.opacity = 0.65 * (1 - r.t); }
+  let i = 0;
+  for (let n = parts.length - 1; n >= 0; n--) {
+    const p = parts[n]; p.life -= dt; p.vy -= p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.life <= 0 || p.y < -0.2) { parts.splice(n, 1); continue; }
+    const s = Math.min(1, p.life * 2); partMesh.setMatrixAt(i, M4.compose(V.set(p.x, p.y, p.z), Q.setFromEuler(E.set(t * 3 + n, t * 2, 0)), SC.set(s, s, s))); partMesh.setColorAt(i++, p.col);
+  }
+  partMesh.count = i; partMesh.instanceMatrix.needsUpdate = true; if (i) partMesh.instanceColor.needsUpdate = true;
+  padSpots.forEach((p, k) => pads.setMatrixAt(k, M4.compose(V.set(p.x, waveH(p.x, p.z, t) + 0.03, p.z), Q.setFromAxisAngle(UP, p.r), SC.set(p.k, 1, p.k))));
+  pads.instanceMatrix.needsUpdate = true;
+  for (let k = 0; k < 12; k++) { const p = padSpots[k * 2]; blooms.setMatrixAt(k, M4.makeTranslation(p.x + 0.15, waveH(p.x, p.z, t) + 0.15, p.z)); }
+  blooms.instanceMatrix.needsUpdate = true;
+  fireflies.forEach((f, k) => { const s = 0.6 + 0.6 * Math.max(0, Math.sin(t * f.sp + f.ph)); flies.setMatrixAt(k, M4.compose(V.set(f.x + Math.sin(t * 0.4 + f.ph) * 1.5, f.y + Math.sin(t * 0.7 + f.ph * 2) * 0.5, f.z + Math.cos(t * 0.35 + f.ph) * 1.5), Q.identity(), SC.set(s, s, s))); });
+  flies.instanceMatrix.needsUpdate = true;
+  birds.forEach((b, k) => { const x = ((t * b.v + b.o) % 520) - 260; b.g.position.set(x, b.y + Math.sin(t * 0.5 + k) * 2, b.z); b.wl.rotation.z = 0.5 + Math.sin(t * 6 + k) * 0.5; b.wr.rotation.z = -b.wl.rotation.z; });
+  boat.position.y = waveH(3.4, 7, t) * 0.8; boat.rotation.z = Math.sin(t * 1.1) * 0.04;
+}
+const fireflies = Array.from({ length: 46 }, (_, k) => { const s = mulberry32(100 + k); return { x: -26 + s() * 52, y: 1 + s() * 2.5, z: k < 30 ? 9 + s() * 14 : -18 + s() * 30, sp: 1.5 + s() * 2.5, ph: s() * 6 }; });
+const flies = new THREE.InstancedMesh(new THREE.SphereGeometry(0.06, 6, 4), new THREE.MeshBasicMaterial({ color: "#fff2a0" }), fireflies.length);
+flies.frustumCulled = false; scene.add(flies);
+const birds = Array.from({ length: 5 }, (_, k) => {
+  const g = new THREE.Group(), m = new THREE.MeshBasicMaterial({ color: "#3a2a48", fog: false });
+  const wl = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 0.6), m), wr = wl.clone();
+  wl.geometry.translate(1.1, 0, 0); wl.position.x = 0; wr.geometry = wl.geometry.clone().translate(-2.2, 0, 0);
+  g.add(wl, wr); g.scale.setScalar(1.4); scene.add(g);
+  return { g, wl, wr, v: 6 + k * 1.3, o: k * 97, y: 45 + k * 6, z: -190 - k * 18 };
+});
+const jumper = { s: null, at: 3000, t0: 0, x: 0, z: 0, dir: 1 };
+function jumpTick(now) {
+  if (!jumper.s) { jumper.s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true })); jumper.s.visible = false; scene.add(jumper.s); }
+  if (!jumper.s.visible && now > jumper.at) {
+    const f = FISH[Math.floor(Math.random() * 8)]; jumper.s.material.map = fishTex(FISH.indexOf(f)); jumper.s.material.needsUpdate = true;
+    Object.assign(jumper, { t0: now, x: rnd(-22, 22), z: rnd(-50, -24), dir: Math.random() < 0.5 ? -1 : 1 }); jumper.s.visible = true; ripple(jumper.x, jumper.z, 1.2); burst(jumper.x, 0.3, jumper.z, 10, "#e8f6ff", 1.5, 3.5);
+  }
+  if (jumper.s.visible) {
+    const k = (now - jumper.t0) / 1100;
+    if (k >= 1) { jumper.s.visible = false; jumper.at = now + rnd(ATTRACT ? 1500 : 4000, ATTRACT ? 3500 : 9000); ripple(jumper.x + jumper.dir * 3, jumper.z, 1.2); burst(jumper.x + jumper.dir * 3, 0.3, jumper.z, 10, "#e8f6ff", 1.5, 3.5); return; }
+    jumper.s.position.set(jumper.x + jumper.dir * 3 * k, 0.3 + Math.sin(k * Math.PI) * 2.4, jumper.z); jumper.s.scale.set(1.6 * jumper.dir, 0.8, 1);
+    jumper.s.material.rotation = (0.5 - k) * 1.6 * jumper.dir;
+  }
+}
+const fishTexCache = new Map();
+/** The fish drawing as a texture (for the fish held up and the fish that jumps). */
+function fishTex(i) {
+  if (!fishTexCache.has(i)) fishTexCache.set(i, canvasTex(256, 128, (c, w, h) => drawFish(c, FISH[i], w, h, false)));
+  return fishTexCache.get(i);
+}
+
+// ── ANGLERS ─────────────────────────────────────────────────────────────────────────
+const skin = mat("#ffe0c2"), black = mat("#1d2433"), blush = mat("#ff9fb0"), shoe = mat("#3a3f4f");
+const rodMat = mat("#5a3a22", { roughness: 0.5 }), reelMat = mat("#c9ccd6", { metalness: 0.6, roughness: 0.3 });
+const lineMat = new THREE.LineBasicMaterial({ color: "#fff8ea", transparent: true, opacity: 0.45 });
+const HAT = { // each returns [geometry, material, y, z] parts sitting on top of the head
+  bucket: (c) => [[new THREE.CylinderGeometry(0.33, 0.4, 0.3, 18), c, 0.08, 0], [new THREE.CylinderGeometry(0.62, 0.62, 0.04, 20), c, -0.05, 0]],
+  cap: (c) => [[new THREE.SphereGeometry(0.42, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), c, 0, 0], [new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16), c, 0.02, 0.35]],
+  straw: () => [[new THREE.CylinderGeometry(0.78, 0.78, 0.04, 22), mat("#e8cf86"), -0.02, 0], [new THREE.CylinderGeometry(0.3, 0.34, 0.32, 18), mat("#e8cf86"), 0.14, 0], [new THREE.CylinderGeometry(0.345, 0.345, 0.08, 18), mat("#d0404a"), 0.04, 0]],
+  beanie: (c) => [[new THREE.SphereGeometry(0.45, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), c, -0.08, 0], [new THREE.SphereGeometry(0.13, 10, 8), mat("#fff"), 0.4, 0]],
+  party: () => [[new THREE.ConeGeometry(0.25, 0.65, 16), mat("#ff6fb5"), 0.3, 0], [new THREE.SphereGeometry(0.09, 8, 6), mat("#ffd23f"), 0.65, 0]],
+};
+function buildHat(kind, color) {
+  const g = new THREE.Group();
+  for (const [geo, m, y, z] of HAT[kind] ? HAT[kind](mat(color)) : []) { const o = new THREE.Mesh(geo, m); o.position.set(0, y, z); o.castShadow = true; g.add(o); }
+  return g;
+}
+const capsule = new THREE.CapsuleGeometry(0.42, 0.4, 4, 14), headGeo = new THREE.SphereGeometry(0.46, 18, 14), eyeGeo = new THREE.SphereGeometry(0.06, 8, 6), armGeo = new THREE.CapsuleGeometry(0.1, 0.32, 3, 8), footGeo = new THREE.SphereGeometry(0.15, 10, 8);
+const rodGeo = new THREE.CylinderGeometry(0.018, 0.045, 2.9, 6).translate(0, 1.45, 0), bobTop = new THREE.SphereGeometry(0.13, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), bobBot = bobTop.clone().rotateX(Math.PI);
+const bobRed = mat("#ff3b3b", { roughness: 0.4 }), bobWhite = mat("#ffffff", { roughness: 0.4 });
+const LINE_N = 14;
+function makeAngler() {
+  const g = new THREE.Group(), rig = new THREE.Group(), bodyMat = mat("#ccc");
+  const part = (geo, m, x, y, z, parent = rig) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; parent.add(o); return o; };
+  part(capsule, bodyMat, 0, 0.75, 0);
+  const head = new THREE.Group(); head.position.y = 1.55; rig.add(head);
+  part(headGeo, skin, 0, 0, 0, head);
+  for (const s of [-1, 1]) { part(eyeGeo, black, s * 0.15, 0.05, 0.42, head); part(eyeGeo, blush, s * 0.27, -0.08, 0.36, head).scale.set(1.3, 0.7, 0.6); }
+  const arms = [-1, 1].map((s) => { const p = new THREE.Group(); p.position.set(s * 0.5, 1.05, 0); rig.add(p); part(armGeo, bodyMat, 0, -0.22, 0, p); return p; });
+  const feet = [-1, 1].map((s) => part(footGeo, shoe, s * 0.2, 0.12, 0.05));
+  const hat = new THREE.Group(); hat.position.y = 0.36; head.add(hat);
+  const rodPivot = new THREE.Group(); rodPivot.position.set(-0.42, 0.85, 0.32); rig.add(rodPivot); // held in the left hand
+  part(rodGeo, rodMat, 0, 0, 0, rodPivot); part(new THREE.CylinderGeometry(0.09, 0.09, 0.1, 10).rotateZ(Math.PI / 2), reelMat, 0.08, 0.35, 0, rodPivot);
+  const tip = new THREE.Object3D(); tip.position.y = 2.9; rodPivot.add(tip);
+  const bobber = new THREE.Group(); bobber.add(new THREE.Mesh(bobTop, bobRed), new THREE.Mesh(bobBot, bobWhite)); scene.add(bobber);
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: LINE_N }, () => new THREE.Vector3())), lineMat); line.frustumCulled = false; scene.add(line);
+  const held = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true })); held.visible = false; scene.add(held);
+  g.add(rig); scene.add(g);
+  return { g, rig, head, arms, feet, hat, bodyMat, rodPivot, tip, bobber, line, held, heldF: -1, look: "", x: 0, z: 0, h: 0, fresh: true, speed: 0,
+    emote: "", ek: -1, emoteAt: 0, dSm: 1, st: "", t0: 0, nextRipple: 0, tag: null };
+}
+function setLook(v, look) {
+  const key = JSON.stringify(look); if (v.look === key) return; v.look = key;
+  v.bodyMat.color.set(look.c || "#ccc");
+  v.hat.clear(); v.hat.add(buildHat(look.hat, look.c));
+  if (v.tag) v.tag.name.textContent = look.n || "Player";
+}
+/** Walk bob and the emotes. `e`/`ek` come from state; a new `ek` restarts the emote. The left hand keeps the rod. */
+function animate(v, e, ek, holding, t) {
+  if (ek !== v.ek || e !== v.emote) { v.emote = e; v.ek = ek; v.emoteAt = t; }
+  const since = t - v.emoteAt, walk = Math.min(1, v.speed / 3), sw = Math.sin(t * 11) * walk;
+  let y = Math.abs(Math.sin(t * 11)) * 0.1 * walk, spin = 0, armR = -sw * 0.6, armL = -0.95, foot = sw * 0.12, sit = false, waving = false;
+  if (e === "wave" && since < 2.6) { waving = true; v.arms[1].rotation.set(0, 0, 2.5 + Math.sin(t * 12) * 0.45); }
+  if (e === "cheer" && since < 1.1) { const p = since / 1.1; y = Math.sin(p * Math.PI) * 1.1; armR = -2.8 * Math.sin(p * Math.PI); }
+  if (e === "dance") { y = Math.abs(Math.sin(t * 8)) * 0.2; spin = Math.sin(t * 4) * 0.6; armR = -2.6 + Math.sin(t * 8) * 0.5; }
+  if (e === "sit") { sit = true; y = -0.42; armR = -0.4; }
+  if (holding) { armL = -2.7; armR = -2.7; waving = false; }
+  v.rig.position.y = y; v.rig.rotation.y = spin;
+  v.arms[0].rotation.set(armL, 0, -0.15);
+  if (!waving) v.arms[1].rotation.set(armR, 0, 0.15);
+  v.feet.forEach((f, i) => { f.position.z = sit ? 0.5 : 0.05 + (i ? foot : -foot); f.position.y = sit ? 0.3 : 0.12; });
+}
+/** Nibbles before a bite, the same on every screen: worked out from the cast's start time. */
+function dip(t0, el) {
+  const s = mulberry32(t0 % 100000), n = 1 + Math.floor(s() * 3);
+  for (let i = 0; i < n; i++) { const at = 1200 + s() * 2600 + i * 1300, k = (el - at) / 260; if (k > 0 && k < 1) return Math.sin(k * Math.PI) * 0.12; }
+  return 0;
+}
+const tipW = new THREE.Vector3(), bobW = new THREE.Vector3(), lp = new THREE.Vector3();
+/** Draw one angler's fishing from its state: rod angle, bobber, line and any fish held up. */
+function pose(v, fs, dt, now, t) {
+  const el = Date.now() - fs.t0, fx = Math.sin(v.h), fz = Math.cos(v.h), rx = Math.cos(v.h), rz = -Math.sin(v.h);
+  if (fs.st !== v.st || fs.t0 !== v.t0) onStateChange(v, fs, el);
+  let rodX = 0.8, showBob = true, showLine = true, holding = false, sag = 0.4;
+  const edgeX = v.x + fx * 1.4, edgeZ = v.z + fz * 1.4;
+  switch (fs.st) {
+    case "charge": rodX = 0.8 - 1.7 * Math.min(1, el / 300); break;
+    case "cast": { const k = Math.min(1, el / CONFIG.flightMs); rodX = k < 0.25 ? -0.9 + 8 * k : 1.1 - 0.5 * (k - 0.25); break; }
+    case "wait": rodX = 0.62 + Math.sin(t * 1.1) * 0.03; break;
+    case "bite": rodX = 0.9 + Math.sin(t * 40) * 0.06; sag = 0.05; break;
+    case "reel": rodX = 0.25 + Math.sin(t * 9) * 0.07; sag = 0.05; break;
+    case "hold": showBob = showLine = false; holding = true; break;
+    case "lost": rodX = 1.05; break;
+  }
+  v.rodPivot.visible = !holding;
+  v.rodPivot.rotation.set(rodX, 0, 0.12);
+  v.g.updateMatrixWorld(true); v.tip.getWorldPosition(tipW);
+  // where the bobber is
+  if (fs.st === "cast") {
+    const k = Math.min(1, el / CONFIG.flightMs);
+    bobW.set(tipW.x + (fs.bx - tipW.x) * k, tipW.y + (0.2 - tipW.y) * k + Math.sin(k * Math.PI) * 3.5, tipW.z + (fs.bz - tipW.z) * k);
+  } else if (fs.st === "wait") bobW.set(fs.bx, waveH(fs.bx, fs.bz, t) + 0.06 - dip(fs.t0, el), fs.bz);
+  else if (fs.st === "bite") bobW.set(fs.bx, waveH(fs.bx, fs.bz, t) - 0.22 + Math.sin(t * 30) * 0.05, fs.bz);
+  else if (fs.st === "reel") {
+    const d = fs.du ? clamp(1 - el / fs.du + Math.sin(el / 380) * 0.04, 0, 1) : clamp(fs.d, 0, 1.2);
+    v.dSm += (d - v.dSm) * Math.min(1, dt * 6);
+    const wig = Math.sin(t * 5 + v.h * 3) * 0.6 * v.dSm, x = edgeX + (fs.bx - edgeX) * v.dSm + rx * wig, z = edgeZ + (fs.bz - edgeZ) * v.dSm + rz * wig;
+    bobW.set(x, waveH(x, z, t) - 0.04, z);
+    if (now > v.nextRipple) { v.nextRipple = now + 320; ripple(x, z, 0.6, 0.8); if (Math.random() < 0.5) burst(x, 0.2, z, 3, "#e8f6ff", 0.8, 2); }
+  } else bobW.set(tipW.x, tipW.y - 0.75 + Math.sin(t * 2) * 0.04, tipW.z); // dangling from the tip
+  v.bobber.visible = showBob; v.line.visible = showLine;
+  if (showBob) v.bobber.position.copy(bobW);
+  if (showLine) {
+    const a = v.line.geometry.attributes.position, dist = tipW.distanceTo(bobW);
+    for (let i = 0; i < LINE_N; i++) { const k = i / (LINE_N - 1); lp.lerpVectors(tipW, bobW, k); lp.y -= Math.sin(k * Math.PI) * sag * Math.min(2.5, dist * 0.12); a.setXYZ(i, lp.x, lp.y, lp.z); }
+    a.needsUpdate = true;
+  }
+  // the fish held up: it flies out of the water into your hands, then you show it off
+  v.held.visible = holding && fs.f >= 0;
+  if (v.held.visible) {
+    if (v.heldF !== fs.f) { v.heldF = fs.f; v.held.material.map = fishTex(fs.f); v.held.material.needsUpdate = true; }
+    const s = 0.9 + Math.min(1, (fs.kg || 1) / 8) * 0.9, k = Math.min(1, el / 450), hx = v.x, hz = v.z, hy = DECK + 2.75 + v.rig.position.y;
+    v.held.position.set(edgeX + fx * 2 + (hx - edgeX - fx * 2) * k, (0.3 + (hy - 0.3) * k) + Math.sin(k * Math.PI) * 1.6, edgeZ + fz * 2 + (hz - edgeZ - fz * 2) * k);
+    v.held.scale.set(s * 1.4, s * 0.7, 1); v.held.material.rotation = Math.sin(t * 7) * 0.12;
+  }
+  return holding;
+}
+/** A fishing state just changed on someone: splash, sparkle and tell the log about catches. */
+function onStateChange(v, fs, el) {
+  const first = v.st === "" && !v.fresh;
+  v.st = fs.st; v.t0 = fs.t0;
+  if (el > 2500 || first) return; // an old state seen on joining: no fanfare
+  if (fs.st === "wait") { ripple(fs.bx, fs.bz, 1, 1.3); burst(fs.bx, 0.3, fs.bz, 6, "#e8f6ff", 1.2, 2.5); }
+  if (fs.st === "bite") { ripple(fs.bx, fs.bz, 1.4, 1); burst(fs.bx, 0.3, fs.bz, 10, "#e8f6ff", 1.5, 3); }
+  if (fs.st === "reel") v.dSm = 1;
+  if (fs.st === "hold" && fs.f >= 0) {
+    const f = FISH[fs.f], rare = RARITY[f.r];
+    burst(v.x, DECK + 2.6, v.z, 14 + f.r * 10, rare.color, 2.2, 3.5, 4);
+    if (v.id !== net.sessionId) { systemLine(`🎣 ${v.name} caught ${an(f.name)} · ${kgText(fs.kg)}`, rare.color); if (f.r >= 2) toast(`✨ ${v.name} caught ${an(rare.name)} ${f.name}!`); botsCheer(v.id, v.name, f); }
+    if (f.r >= 3) sfxFanfare(f.r, 0.4);
+  }
+}
+const views = new Map(); // id -> angler, for everyone (me included)
+function viewOf(id) {
+  let v = views.get(id);
+  if (!v) {
+    v = makeAngler(); v.id = id;
+    const el = document.createElement("div"); el.className = "tag";
+    el.innerHTML = `<div class="bubble"></div><div class="name"></div>`; $("tags").appendChild(el);
+    v.tag = { el, bubble: el.firstChild, name: el.lastChild, text: "", until: 0 };
+    views.set(id, v);
+  }
+  return v;
+}
+function dropView(id) { const v = views.get(id); if (v) { scene.remove(v.g, v.bobber, v.line, v.held); v.tag.el.remove(); views.delete(id); } }
+const proj = new THREE.Vector3();
+/** Name tags and bubbles follow the anglers on screen. */
+function placeTag(v, now) {
+  proj.set(v.x, DECK + 2.55 + v.rig.position.y + (v.held.visible ? 1 : 0), v.z).project(camera);
+  const d = camera.position.distanceTo(v.g.position), show = proj.z < 1 && d < 45;
+  v.tag.el.style.display = show ? "" : "none";
+  if (!show) return;
+  const bubble = v.tag.until > now ? v.tag.text : "";
+  if (v.tag.bubble.textContent !== bubble) v.tag.bubble.textContent = bubble;
+  v.tag.el.style.transform = `translate(-50%, -100%) translate(${((proj.x + 1) / 2) * innerWidth}px, ${((1 - proj.y) / 2) * innerHeight}px) scale(${Math.max(0.6, Math.min(1, 12 / d))})`;
+  v.tag.el.style.zIndex = String(1000 - Math.round(d * 10));
+}
+
+// ── BOTS (HOST) ─────────────────────────────────────────────────────────────────────
+const host = { was: false, bots: new Map(), lastPub: 0, lastSent: 0, sent: "", T: 0, greeted: new Set(), queue: [], deck: [] };
+/** Every bot, as the host simulates it or as the host last published it. */
+function botList() {
+  if (isHost() && host.was) return [...host.bots.values()].map((b) => ({ i: b.id, n: b.name, c: b.color, hat: b.hat, s: b.s, x: b.x, z: b.z, ry: b.h, w: b.path ? 1 : 0, e: b.e, ek: b.ek,
+    st: b.st, t0: b.t0, u: b.u, bx: b.bx, bz: b.bz, du: b.du, f: b.f, kg: b.kg, lose: b.lose, say: b.say }));
+  return unpackBots(S.shared.bots);
+}
+// The `bots` field packs each bot as an array (keys in BOT_KEYS order) and its times as ms after T,
+// so 10 bots stay well under the 2048-character limit.
+const BOT_KEYS = ["i", "n", "c", "hat", "s", "x", "z", "ry", "w", "e", "ek", "st", "t0", "u", "bx", "bz", "du", "f", "kg", "lose", "say"];
+const r2 = (v) => Math.round(v * 100) / 100;
+function packBots(list) {
+  return JSON.stringify({ T: host.T, b: list.map((b) => BOT_KEYS.map((k) => (k === "t0" || k === "u" ? Math.round(Math.min(b[k] - host.T, 9e8)) : k === "say" ? [String(b.say.t).slice(0, 48), b.say.k] : typeof b[k] === "number" ? r2(b[k]) : b[k]))) });
+}
+const botsMemo = { raw: undefined, v: [] };
+function unpackBots(raw) {
+  if (raw === botsMemo.raw) return botsMemo.v;
+  const o = parse(raw, null), out = [];
+  if (o && Array.isArray(o.b)) for (const a of o.b) { const b = {}; BOT_KEYS.forEach((k, j) => { b[k] = a[j]; }); b.t0 += o.T; b.u += o.T; b.say = { t: String((b.say || [])[0] || ""), k: (b.say || [])[1] || 0 }; out.push(b); }
+  botsMemo.raw = raw; botsMemo.v = out; return out;
+}
+function adoptBots() {
+  host.was = true; host.bots.clear(); host.T = Date.now();
+  for (const id of livePlayers()) if (id !== net.sessionId || S.shared.bots) host.greeted.add(id); // a fresh room greets you
+  for (const b of unpackBots(S.shared.bots)) host.bots.set(b.i, newBot(b.i, { name: b.n, color: b.c, hat: b.hat, s: b.s, x: b.x, z: b.z, h: b.ry, e: b.e, ek: b.ek,
+    st: b.st, t0: b.t0, u: b.u, bx: b.bx, bz: b.bz, du: b.du, f: b.f, kg: b.kg, lose: b.lose, say: b.say, path: b.w ? routeTo(b.x, b.z, b.s) : null }));
+}
+/** People's spots and colors right now: { spots: Set, colors: Set } (bots not included). */
+function humanClaims() {
+  const spots = new Map(), colors = new Set(), live = livePlayers();
+  for (const id of live) {
+    const a = id === net.sessionId ? { s: me.s } : field("a:" + id, S.entities.players[id]?.a, null), look = id === net.sessionId ? myLook : lookOf(id);
+    if (a && a.s >= 0) spots.set(a.s, id);
+    if (look.c) colors.add(look.c);
+  }
+  return { spots, colors };
+}
+function newBot(id, from) {
+  const usedNames = new Set([...host.bots.values()].map((b) => b.name)), claims = humanClaims(), usedColors = new Set([...claims.colors, ...[...host.bots.values()].map((b) => b.color)]);
+  const s = from?.s ?? freeSpotForBot(claims), sp = SPOTS[s] || SPOTS[0], now = Date.now();
+  const b = { id, name: BOT_NAMES.find((n) => !usedNames.has(n)) || "Bot", color: COLORS.find((c) => !usedColors.has(c)) || pick(COLORS), hat: pick(Object.keys(HAT)),
+    s, x: sp.x, z: sp.z, h: sp.h, path: null, e: "", ek: 0, st: "idle", t0: now, u: now + rnd(200, 3000), bx: 0, bz: 0, du: 0, f: -1, kg: 0, lose: 0,
+    say: { t: "", k: 0 }, nextSay: performance.now() + rnd(2000, CONFIG.botTalk[1]), ...from };
+  if (!from && Math.random() < 0.6) { const a = rnd(0.3, 0.9); b.st = "wait"; b.t0 = now - 500; b.u = now + rnd(500, 4000); aimCast(b, a); } // already fishing
+  return b;
+}
+function freeSpotForBot(claims) {
+  const botSpots = new Set([...host.bots.values()].map((b) => b.s));
+  return PREFERRED.find((s) => !claims.spots.has(s) && !botSpots.has(s)) ?? -1;
+}
+function aimCast(b, power) {
+  const sp = SPOTS[b.s], dist = CONFIG.castMin + (CONFIG.castMax - CONFIG.castMin) * power, side = rnd(-2, 2);
+  b.bx = sp.x + Math.sin(sp.h) * dist + Math.cos(sp.h) * side; b.bz = sp.z + Math.cos(sp.h) * dist - Math.sin(sp.h) * side; b.depth = power;
+}
+/** One bot's fishing: idle → cast → wait → bite → reel → hold (or lost) → idle, on timestamps, so a new host carries on. */
+function botFish(b) {
+  for (let guard = 0; guard < 12 && Date.now() >= b.u; guard++) {
+    const at = b.u;
+    if (b.st === "idle") { aimCast(b, rnd(0.35, 1)); b.e = b.e === "dance" ? "" : b.e; Object.assign(b, { st: "cast", t0: at, u: at + CONFIG.flightMs }); }
+    else if (b.st === "cast") Object.assign(b, { st: "wait", t0: at, u: at + rnd(...CONFIG.botWaitMs) });
+    else if (b.st === "wait") Object.assign(b, { st: "bite", t0: at, u: at + rnd(350, 750) });
+    else if (b.st === "bite") { const r = rollFish(b.depth ?? 0.5, Math.random); Object.assign(b, { st: "reel", t0: at, f: r.f, kg: r.kg, lose: Math.random() > CONFIG.botCatch ? 1 : 0 }); b.du = rnd(...CONFIG.botReelMs) * (0.7 + FISH[r.f].fight * 0.6); b.u = at + b.du * (b.lose ? 0.6 : 1); }
+    else if (b.st === "reel") {
+      if (b.lose) { Object.assign(b, { st: "lost", t0: at, u: at + 900, f: -1 }); if (Math.random() < 0.35) botLine(b, pick(["Aww, it got away!", "Snap! 😩", "So close…"])); }
+      else { Object.assign(b, { st: "hold", t0: at, u: at + CONFIG.holdMs }); if (FISH[b.f].r >= 2 || Math.random() < 0.25) botLine(b, `Got ${an(FISH[b.f].name)}! ${FISH[b.f].r >= 3 ? "🤩" : "🎣"}`, FISH[b.f].r >= 2 ? "cheer" : ""); }
+    } else Object.assign(b, { st: "idle", t0: at, u: at + rnd(ATTRACT ? 300 : 800, ATTRACT ? 1200 : 3500), f: -1 });
+  }
+}
+function botLine(b, text, emote) {
+  if (ATTRACT) text = text.replace(/[\u{1F000}-\u{1FFFF}\u2600-\u27BF\uFE0F]/gu, "").trim(); // the preview recorder has no emoji font
+  b.say = { t: text, k: b.say.k + 1 }; if (emote) { b.e = emote; b.ek++; } bubble(b.id, b.name, b.color, text); }
+/** A bot says something nice when a person lands a good fish. */
+function botsCheer(id, name, f) {
+  if (!isHost() || host.bots.has(id) || f.r < 1 || !host.bots.size || Math.random() < 0.3) return;
+  host.queue.push({ at: performance.now() + rnd(900, 2000), id: pick([...host.bots.keys()]), text: pick(CONFIG.cheer).replace("{fish}", f.name).replace("{name}", name), emote: Math.random() < 0.5 ? "cheer" : "wave" });
+}
+function hostTick(dt, now) {
+  if (!host.was) adoptBots();
+  const claims = humanClaims(), humans = livePlayers().filter((id) => !(ATTRACT && id === net.sessionId));
+  const want = Math.max(0, Math.min(SPOTS.length - humans.length - (ATTRACT ? 1 : 0), CONFIG.seats - humans.length - (ATTRACT ? 1 : 0)));
+  while (host.bots.size > want) host.bots.delete([...host.bots.keys()].pop());
+  while (host.bots.size < want) { const id = "b" + Math.random().toString(36).slice(2, 6), b = newBot(id); if (b.s < 0) break; host.bots.set(id, b); }
+  const bots = [...host.bots.values()];
+  for (const id of humans) { // a bot says hi to everyone who arrives
+    const look = id === net.sessionId ? myLook : lookOf(id);
+    if (look.n && !host.greeted.has(id) && bots.length) { host.greeted.add(id); host.queue.push({ at: now + 1800, id: pick(bots).id, text: pick(CONFIG.greet).replace("{name}", look.n), emote: "wave" }); }
+  }
+  for (const q of host.queue.filter((q) => now >= q.at)) { const b = host.bots.get(q.id); if (b) botLine(b, q.text, q.emote); }
+  host.queue = host.queue.filter((q) => now < q.at);
+  for (const b of bots) {
+    if (claims.colors.has(b.color)) { const used = new Set([...claims.colors, ...bots.map((o) => o.color)]); b.color = COLORS.find((c) => !used.has(c)) || b.color; } // people keep their color
+    if (claims.spots.has(b.s) && !b.path) { // a person wants this spot: walk to a free one
+      const s = PREFERRED.find((k) => !claims.spots.has(k) && !bots.some((o) => o.s === k));
+      if (s === undefined) { host.bots.delete(b.id); continue; }
+      b.path = routeTo(b.x, b.z, s); b.s = s; Object.assign(b, { st: "idle", t0: Date.now(), u: Date.now() + 1e9, e: "" });
+    }
+    if (b.path) {
+      const p = b.path[0], dx = p.x - b.x, dz = p.z - b.z, d = Math.hypot(dx, dz), step = CONFIG.walkSpeed * 0.8 * dt;
+      if (d <= step) { b.x = p.x; b.z = p.z; b.path.shift(); if (!b.path.length) { b.path = null; b.h = SPOTS[b.s].h; b.u = Date.now() + rnd(400, 1500); } }
+      else { b.x += (dx / d) * step; b.z += (dz / d) * step; b.h = Math.atan2(dx, dz); }
+    } else botFish(b);
+    if (now > b.nextSay && !b.path) { b.nextSay = now + rnd(...CONFIG.botTalk); if (!host.deck.length) host.deck = [...CONFIG.botLines].sort(() => Math.random() - 0.5); botLine(b, host.deck.pop()); }
+    if (b.e && Math.random() < dt * (b.e === "sit" ? 0.03 : 0.1)) b.e = ""; // emotes wear off
+    if (!b.e && !b.path && b.st === "wait" && Math.random() < dt * 0.02) { b.e = pick(["sit", "sit", "wave"]); b.ek++; }
+  }
+  if (now - host.lastPub > 125) { // ~8/s at most, and only when something changed
+    host.lastPub = now;
+    const json = packBots(botList());
+    if (json !== host.sent || now - host.lastSent > 2000) { host.sent = json; host.lastSent = now; net.setShared("bots", json); }
+  }
+}
+/** Bots answer when someone says hi. */
+function maybeReply(name, text) {
+  if (!isHost() || !/\b(hi|hey|hello|yo|hiya|howdy)\b/i.test(text) || !host.bots.size) return;
+  host.queue.push({ at: performance.now() + rnd(900, 1800), id: pick([...host.bots.keys()]), text: pick(["Hey {name}! 😄", "Hi {name}!", "Hello {name} 👋"]).replace("{name}", name), emote: "wave" });
+}
+
+// ── ME ──────────────────────────────────────────────────────────────────────────────
+const FRIENDLY = ["Lazy", "Sunny", "Comfy", "Lucky", "Cosy", "Breezy"], CRITTERS = ["Otter", "Heron", "Frog", "Duck", "Beaver", "Kingfisher"];
+const stored = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
+const keep = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const myLook = { n: stored("mpa-name") || pick(FRIENDLY) + " " + pick(CRITTERS), c: COLORS[0], hat: parse(stored("chill-fishing.look"), {}).hat || "bucket" };
+const me = { s: -1, x: 0, z: 10, h: Math.PI, path: null, e: "", ek: 0, st: "idle", t0: 0, bx: 0, bz: 0, d: 1, f: -1, kg: 0, depth: 0,
+  power: 0, chargeAt: 0, reeling: false, tension: 0, redMs: 0, biteAt: 0, runUntil: 0, nextRun: 0, lastSend: 0, sent: "", sayK: 0, lastSay: 0, msg: "", msgUntil: 0 };
+function setState(st, extra) { Object.assign(me, extra, { st, t0: Date.now() }); publish(true); }
+function notice(text, sub = "", ms = 1800) { me.msg = text; me.sub = sub; me.msgUntil = performance.now() + ms; }
+
+/** The big button went down (or Space, or a click on the water). `at` = when, from the input event. */
+function press(at) {
+  if (!$("catchPanel").hidden) { $("catchPanel").hidden = true; return; }
+  if (me.path || !panelsClosed()) return;
+  if (me.e === "dance") me.e = "";
+  if (me.st === "idle" || me.st === "hold" || me.st === "lost") { me.chargeAt = Date.now(); setState("charge", { f: -1 }); }
+  else if (me.st === "wait") { setState("lost"); notice("Too soon!", "Wait for the big dunk, not the nibbles"); sfx(220, 0.15, "triangle"); }
+  else if (me.st === "bite") hook(at);
+  else if (me.st === "reel") me.reeling = true;
+}
+function release() {
+  if (me.st === "charge") cast(me.power);
+  me.reeling = false;
+}
+function cast(power) {
+  const sp = SPOTS[me.s], dist = CONFIG.castMin + (CONFIG.castMax - CONFIG.castMin) * power, side = rnd(-1.5, 1.5);
+  me.depth = power;
+  setState("cast", { bx: sp.x + Math.sin(sp.h) * dist + Math.cos(sp.h) * side, bz: sp.z + Math.cos(sp.h) * dist - Math.sin(sp.h) * side, d: 1 });
+  sfx(700, 0.25, "sine", 0.05, 250);
+}
+function hook(at) {
+  const late = (performance.now() - (at ?? performance.now())) / 1000; // input lag doesn't count against you
+  if (Date.now() - me.t0 - late * 1000 > liveCfg("biteWindowMs")) return;
+  const r = rollFish(me.depth, Math.random);
+  me.reeling = true; me.tension = 0.25; me.redMs = 0; me.nextRun = Date.now() + rnd(500, 1300); me.runUntil = 0;
+  setState("reel", { f: -1, kg: 0, d: 1 }); me.fish = r;
+  sfx(330, 0.12, "square", 0.04, 660);
+}
+/** Your fishing, every frame. Only YOU decide your bites and catches. */
+function fishTick(dt) {
+  const now = Date.now(), el = now - me.t0;
+  if (me.st === "charge") me.power = 0.5 - 0.5 * Math.cos(((now - me.chargeAt) / 1000) * Math.PI * 2 * CONFIG.powerHz);
+  else if (me.st === "cast" && el >= CONFIG.flightMs) {
+    setState("wait"); me.biteAt = now + rnd(...CONFIG.waitMs); me.nibbled = 0;
+    sfxSplash(0.05); notice(me.depth > 0.8 ? "A long cast! Deep water…" : "Wait for the bobber to dunk…", me.depth > 0.8 ? "Rarer fish live out here" : "", 2200);
+  } else if (me.st === "wait") {
+    if (dip(me.t0, el) > 0.06 && now - me.nibbled > 400) { me.nibbled = now; sfx(900, 0.05, "sine", 0.03); }
+    if (now >= me.biteAt) { setState("bite"); sfxSplash(0.09); sfx(520, 0.12, "square", 0.05, 900); }
+  } else if (me.st === "bite" && el > liveCfg("biteWindowMs")) { setState("lost"); notice("It got away…", "Tap as soon as the bobber dunks"); }
+  else if (me.st === "reel") reelTick(dt, now);
+  else if (me.st === "hold" && el > CONFIG.holdMs) setState("idle");
+  else if (me.st === "lost" && el > 900) setState("idle");
+}
+/** Reeling: hold to pull the line in; the tension climbs fast while the fish runs, so let go then. */
+function reelTick(dt, now) {
+  const f = FISH[me.fish.f], heavy = 0.7 + Math.min(1, me.fish.kg / 8) * 0.6;
+  if (now > me.runUntil && now > me.nextRun) { me.runUntil = now + rnd(450, 700 + 800 * f.fight); me.nextRun = me.runUntil + rnd(700, 2000) * (1.3 - f.fight * 0.5); }
+  const running = now < me.runUntil;
+  if (me.reeling) { me.d -= (CONFIG.reelSpeed * dt * (running ? 0.3 : 1)) / heavy; me.tension += dt * (running ? CONFIG.runRise + f.fight : CONFIG.tensionRise + f.fight * 0.15); }
+  else { me.d += CONFIG.slackPull * dt * (running ? 3 : 1); me.tension -= CONFIG.tensionFall * dt; }
+  me.tension = clamp(me.tension, 0, 1.02); me.running = running;
+  if (me.reeling && running && Math.floor(now / 70) !== Math.floor((now - dt * 1000) / 70)) sfx(1400, 0.02, "square", 0.012);
+  else if (me.reeling && Math.floor(now / 110) !== Math.floor((now - dt * 1000) / 110)) sfx(1100, 0.02, "square", 0.015);
+  me.redMs = me.tension >= 1 ? me.redMs + dt * 1000 : 0;
+  if (me.redMs > CONFIG.snapAfterMs) { setState("lost"); notice("Snap! The line broke.", "Let go while it pulls"); sfx(900, 0.3, "sawtooth", 0.05, 60); return; }
+  if (me.d >= 1.15) { setState("lost"); notice("It swam off…", "Keep reeling between its runs"); return; }
+  if (me.d <= 0) landFish();
+  else publish(false);
+}
+function landFish() {
+  const { f, kg } = me.fish, result = recordCatch(f, kg);
+  setState("hold", { f, kg, d: 0 });
+  sfxSplash(0.08); sfxFanfare(FISH[f].r, 0.6);
+  if (ATTRACT) return;
+  systemLine(`🎣 You caught ${an(FISH[f].name)} · ${kgText(kg)}`, RARITY[FISH[f].r].color);
+  setTimeout(() => showCatch(f, kg, result), 650);
+}
+function publish(force) {
+  const now = performance.now(), r2 = (v) => Math.round(v * 100) / 100;
+  const a = JSON.stringify({ s: me.s, x: r2(me.x), z: r2(me.z), ry: r2(me.h), w: me.path ? 1 : 0, e: me.e, ek: me.ek, st: me.st, t0: me.t0, bx: r2(me.bx), bz: r2(me.bz), d: r2(me.d), f: me.f, kg: me.kg });
+  if (force || (a !== me.sent && now - me.lastSend > 100) || now - me.lastSend > 2000) { me.lastSend = now; me.sent = a; net.me.set("a", a); }
+}
+/** Walk to spot `si` along the dock. People on a spot keep it; bots move aside. */
+function moveTo(si) {
+  if (si === me.s || si < 0) return;
+  if (!["idle", "hold", "lost", "charge"].includes(me.st)) notice("Reeled in", "", 900);
+  me.path = routeTo(me.x, me.z, si); me.s = si; me.e = ""; setState("idle", { f: -1 });
+}
+function stepSpot(dir) {
+  const taken = humanClaims().spots, order = [...SPOTS.keys()];
+  for (let k = 1; k < SPOTS.length; k++) { const s = order[(me.s + dir * k + SPOTS.length * 2) % SPOTS.length]; if (!taken.has(s) || taken.get(s) === net.sessionId) return moveTo(s); }
+}
+function walkTick(dt) {
+  if (!me.path) return;
+  const p = me.path[0], dx = p.x - me.x, dz = p.z - me.z, d = Math.hypot(dx, dz), step = CONFIG.walkSpeed * dt;
+  if (d <= step) { me.x = p.x; me.z = p.z; me.path.shift(); if (!me.path.length) { me.path = null; me.h = SPOTS[me.s].h; publish(true); } }
+  else { me.x += (dx / d) * step; me.z += (dz / d) * step; me.h += Math.atan2(Math.sin(Math.atan2(dx, dz) - me.h), Math.cos(Math.atan2(dx, dz) - me.h)) * Math.min(1, dt * 10); }
+}
+/** Two people on one spot (they joined at the same moment): the higher sessionId moves along. */
+function fixSpot() {
+  if (ATTRACT || me.path) return;
+  const clash = Object.entries(S.entities.players || {}).some(([id, p]) => id < net.sessionId && livePlayers().includes(id) && field("a:" + id, p.a, null)?.s === me.s);
+  if (clash) stepSpot(1);
+}
+/** Right after joining, keep a color nobody else has: the later joiner (look.j) gives way. Bots' colors count as taken. */
+let joinedAt = 0;
+function fixColor() {
+  if (performance.now() - joinedAt > 6000) return; // after that, your pick in the look panel stands
+  const others = Object.entries(S.entities.players || {}).filter(([id]) => id !== net.sessionId).map(([id]) => ({ id, ...lookOf(id) }));
+  if (!others.some((o) => o.c === myLook.c && (o.j < myLook.j || (o.j === myLook.j && o.id < net.sessionId)))) return;
+  const used = new Set([...others.map((o) => o.c), ...botList().map((b) => b.c)]), free = COLORS.find((c) => !used.has(c));
+  if (free) { myLook.c = free; saveLook(); }
+}
+/** ?attract: you fish too, and you are good at it. */
+const auto = { at: 0 };
+function autopilot(now) {
+  if (me.st === "idle" && now > auto.at) { me.chargeAt = Date.now() - 600 * Math.random(); setState("charge"); auto.release = now + rnd(350, 600); }
+  if (me.st === "charge" && now > auto.release) { cast(rnd(0.6, 1)); me.biteAt = 0; }
+  if (me.st === "wait" && me.biteAt && me.biteAt - Date.now() > 2500) me.biteAt = Date.now() + rnd(600, 1800);
+  if (me.st === "bite" && Date.now() - me.t0 > 250) hook();
+  if (me.st === "reel") me.reeling = !me.running && me.tension < 0.8;
+  if (me.st === "hold" || me.st === "lost") auto.at = now + rnd(600, 1400);
+}
+
+// ── SAVES ───────────────────────────────────────────────────────────────────────────
+// Your fish log is yours: a player save (namespace CONFIG.saveNs) plus this browser's copy.
+let save = { v: 1, at: 0, log: {}, total: 0, best: 0, bestF: "" }, player = null, board = null;
+const localSave = { get: () => parse(stored("chill-fishing.save"), null), set: (v) => keep("chill-fishing.save", JSON.stringify(v)) };
+function applySave(s) { if (s && s.v === 1 && s.log) save = { ...save, ...s }; }
+/** Add a catch to the log. Returns what was special about it. */
+function recordCatch(f, kg) {
+  const id = FISH[f].id, grams = Math.round(kg * 1000), entry = save.log[id] || [0, 0], result = { isNew: !entry[0], isBest: grams > entry[1], isRecord: grams > save.best };
+  if (ATTRACT) return result;
+  save.log[id] = [entry[0] + 1, Math.max(entry[1], grams)]; save.total++;
+  if (result.isRecord) { save.best = grams; save.bestF = id; }
+  saveNow();
+  return result;
+}
+async function saveNow() {
+  save.at = Date.now(); localSave.set(save);
+  if (!player) return;
+  try { await player.data.set(save, { namespace: CONFIG.saveNs }); }
+  catch (e) { if (e && e.current) player.data.set(save, { namespace: CONFIG.saveNs, version: e.current.version }).catch(() => {}); } // another device saved in between: ours is newer
+}
+async function loadAccountSave() {
+  try { const r = await player.data.get(CONFIG.saveNs); if (r && r.data && r.data.v === 1 && r.data.at > save.at) applySave(r.data); } catch {}
+}
+function showBoard() {
+  const list = $("board");
+  $("myBest").textContent = save.best ? `Your biggest: ${FISH.find((f) => f.id === save.bestF)?.name || "a fish"}, ${kgText(save.best / 1000)}` : "Land a fish to get on the board.";
+  if (!board) { list.innerHTML = "<li>Leaderboards need a connection.</li>"; return; }
+  list.innerHTML = "<li>Loading…</li>";
+  board.top(10).then(({ entries }) => {
+    list.innerHTML = entries.length ? entries.map((e) => `<li>${esc(e.username || "Player")}<span>${kgText(e.score / 1000)}</span></li>`).join("") : "<li>No catches yet. Land the first!</li>";
+  }).catch(() => { list.innerHTML = "<li>Couldn't load the leaderboard.</li>"; });
+}
+
+// ── CHAT & PANELS ───────────────────────────────────────────────────────────────────
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const typing = () => document.activeElement === $("say") || document.activeElement === $("nameIn");
+const panelsClosed = () => $("logPanel").hidden && $("boardPanel").hidden && $("lookPanel").hidden;
+const touch = matchMedia("(pointer: coarse)").matches;
+const heard = new Map(), lines = []; // heard: id -> last chat k shown
+function lookOf(id) { const p = S.entities.players[id]; return field("look:" + id, p && p.look, {}); }
+/** Show a line: a bubble over the angler and a row in the log. */
+function bubble(id, name, color, text, log = true) {
+  const v = viewOf(id); v.tag.text = text; v.tag.until = performance.now() + CONFIG.bubbleMs;
+  if (log) addLine({ name, color, text });
+}
+const systemLine = (text, color) => addLine({ text, color, sys: true });
+function addLine(l) { lines.push(l); if (lines.length > 40) lines.shift(); drawLog(); }
+function drawLog() {
+  if (ATTRACT) return;
+  $("log").innerHTML = lines.slice(innerWidth < 520 ? -4 : -6).map((l, i, all) => `<div style="opacity:${0.45 + (0.55 * (i + 1)) / all.length}">${l.sys ? `<b style="color:${esc(l.color)}">${esc(l.text)}</b>` : `<b style="color:${esc(l.color)}">${esc(l.name)}</b> ${esc(l.text)}`}</div>`).join("");
+}
+function toast(text) { const t = $("toast"); t.textContent = text; t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 3200); }
+function sendChat() {
+  const input = $("say"), text = input.value.trim().slice(0, 80), now = performance.now();
+  input.value = ""; input.blur();
+  if (!text || now - me.lastSay < CONFIG.chatGapMs) return;
+  me.lastSay = now; me.sayK++;
+  net.send("chat", { t: text, k: me.sayK });
+  net.me.set("say", JSON.stringify({ t: text, k: me.sayK }));
+  heard.set(net.sessionId, me.sayK);
+  bubble(net.sessionId, myLook.n, myLook.c, text);
+  maybeReply(myLook.n, text);
+}
+function emote(e) { me.e = e; me.ek++; if (e === "dance" && !["idle", "hold", "lost"].includes(me.st)) setState("idle", { f: -1 }); $("wheel").hidden = true; publish(true); }
+function showCatch(f, kg, result) {
+  const fish = FISH[f], rare = RARITY[fish.r], cv = $("catchFish"), c = cv.getContext("2d");
+  c.clearRect(0, 0, cv.width, cv.height); drawFish(c, fish, cv.width, cv.height, false);
+  $("catchName").textContent = fish.name; $("catchName").style.color = rare.color;
+  $("catchRarity").textContent = rare.name.toUpperCase(); $("catchRarity").style.background = rare.color;
+  $("catchKg").textContent = kgText(kg);
+  $("catchTags").innerHTML = [result.isNew && "📖 New in your log!", result.isRecord && "🏆 Your biggest ever!", !result.isRecord && result.isBest && "⭐ Your biggest " + fish.name].filter(Boolean).map((t) => `<span>${t}</span>`).join("");
+  $("catchRank").textContent = ""; $("catchTop").hidden = true;
+  if (result.isRecord && board) { // a personal best: submit it, then show where it puts you
+    board.submit(Math.round(kg * 1000)).then((r) => { if (r && r.rank) $("catchRank").textContent = `#${r.rank} of ${r.total} on the biggest-catch board`; return board.top(10); })
+      .then(({ entries }) => { $("catchBoard").innerHTML = entries.map((e) => `<li>${esc(e.username || "Player")}<span>${kgText(e.score / 1000)}</span></li>`).join(""); $("catchTop").hidden = !entries.length; }).catch(() => {});
+  }
+  $("catchPanel").hidden = false;
+}
+function openLog() {
+  const caught = FISH.filter((f) => save.log[f.id]).length;
+  $("logSub").textContent = `${caught} of ${FISH.length} species · ${save.total} fish landed`;
+  $("logGrid").innerHTML = FISH.map((f, i) => { const e = save.log[f.id]; return `<div class="fish"><canvas width="160" height="80" data-i="${i}"></canvas><b style="color:${e ? RARITY[f.r].color : "#9a90a6"}">${e ? esc(f.name) : "???"}</b><i>${e ? `×${e[0]} · best ${kgText(e[1] / 1000)}` : RARITY[f.r].name}</i></div>`; }).join("");
+  for (const cv of $("logGrid").querySelectorAll("canvas")) drawFish(cv.getContext("2d"), FISH[+cv.dataset.i], cv.width, cv.height, !save.log[FISH[+cv.dataset.i].id]);
+  $("logPanel").hidden = false;
+}
+function saveLook() { net.me.set("look", JSON.stringify(myLook)); keep("mpa-name", myLook.n); keep("chill-fishing.look", JSON.stringify({ hat: myLook.hat })); }
+function openLook() {
+  $("nameIn").value = myLook.n;
+  const opts = (el, list, key, label) => { el.innerHTML = list.map((v) => `<button data-v="${v}" class="${myLook[key] === v ? "on" : ""}" ${key === "c" ? `style="background:${v}"` : ""}>${label(v)}</button>`).join("");
+    for (const b of el.children) b.onclick = () => { myLook.n = $("nameIn").value.trim().slice(0, 16) || myLook.n; myLook[key] = b.dataset.v; openLook(); saveLook(); }; };
+  opts($("colorOpts"), COLORS, "c", () => ""); opts($("hatOpts"), Object.keys(HATS), "hat", (h) => HATS[h]);
+  $("lookPanel").hidden = false;
+}
+let audio = null;
+function sfx(freq, dur, type = "square", vol = 0.04, slideTo = 0) {
+  if (!audio || ATTRACT) return;
+  try {
+    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur);
+  } catch {}
+}
+function sfxSplash(vol) {
+  if (!audio || ATTRACT) return;
+  try {
+    const n = audio.createBuffer(1, audio.sampleRate * 0.35, audio.sampleRate), d = n.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+    const s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+    s.buffer = n; f.type = "lowpass"; f.frequency.value = 1400; g.gain.value = vol; s.connect(f).connect(g).connect(audio.destination); s.start();
+  } catch {}
+}
+function sfxFanfare(r, vol) { [523, 659, 784, 1047, 1319].slice(0, 2 + r).forEach((f, i) => setTimeout(() => sfx(f, 0.22, "triangle", 0.05 * vol), i * 90)); }
+
+// ── INPUT ───────────────────────────────────────────────────────────────────────────
+const wheel = $("wheel").firstElementChild;
+Object.entries(EMOTES).forEach(([e, icon], i) => {
+  const b = document.createElement("button"), a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+  b.innerHTML = `<span>${icon}</span>${e}`; b.style.left = 120 + Math.cos(a) * 78 + "px"; b.style.top = 120 + Math.sin(a) * 78 + "px";
+  b.onclick = (ev) => { ev.stopPropagation(); emote(e); }; wheel.appendChild(b);
+});
+const wakeAudio = () => { if (!audio) try { audio = new AudioContext(); } catch {} else if (audio.state === "suspended") audio.resume(); };
+$("wheel").onclick = () => { $("wheel").hidden = true; };
+$("emoteBtn").onclick = () => { $("wheel").hidden = !$("wheel").hidden; };
+$("say").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendChat(); } if (e.key === "Escape") $("say").blur(); e.stopPropagation(); });
+$("logBtn").onclick = openLog; $("logClose").onclick = () => { $("logPanel").hidden = true; };
+$("boardBtn").onclick = () => { showBoard(); $("boardPanel").hidden = false; }; $("boardClose").onclick = () => { $("boardPanel").hidden = true; };
+$("lookBtn").onclick = openLook; $("lookGo").onclick = () => { myLook.n = $("nameIn").value.trim().slice(0, 16) || myLook.n; saveLook(); $("lookPanel").hidden = true; };
+$("catchGo").onclick = () => { $("catchPanel").hidden = true; };
+$("prevSpot").onclick = () => stepSpot(-1); $("nextSpot").onclick = () => stepSpot(1);
+const actBtn = $("act");
+actBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); actBtn.setPointerCapture(e.pointerId); press(e.timeStamp); wakeAudio(); });
+for (const ev of ["pointerup", "pointercancel"]) actBtn.addEventListener(ev, () => release());
+addEventListener("keydown", (e) => {
+  if (typing()) return;
+  const k = e.key.toLowerCase();
+  if (k === " ") { e.preventDefault(); if (!e.repeat) { press(e.timeStamp); wakeAudio(); } return; }
+  if (k === "enter") { e.preventDefault(); $("say").focus(); return; }
+  if (k === "escape") { for (const p of ["catchPanel", "logPanel", "boardPanel", "lookPanel"]) $(p).hidden = true; $("wheel").hidden = true; }
+  if ("1234".includes(k) && k.length === 1) emote(Object.keys(EMOTES)[+k - 1]);
+  if (k === "e") $("wheel").hidden = !$("wheel").hidden;
+  if (k === "a" || k === "arrowleft") stepSpot(-1);
+  if (k === "d" || k === "arrowright") stepSpot(1);
+  if (k === "l") openLog();
+});
+addEventListener("keyup", (e) => { if (e.key === " ") release(); });
+addEventListener("blur", () => release());
+// The water works like the big button; a tap on a free spot's ring walks you there.
+const cv = renderer.domElement, ray = new THREE.Raycaster(), deckPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -DECK), hit = new THREE.Vector3();
+cv.addEventListener("pointerdown", (e) => {
+  e.preventDefault(); $("say").blur(); wakeAudio();
+  ray.setFromCamera({ x: (e.clientX / innerWidth) * 2 - 1, y: -(e.clientY / innerHeight) * 2 + 1 }, camera);
+  if (ray.ray.intersectPlane(deckPlane, hit)) { const s = SPOTS.findIndex((sp, i) => spotRings[i].visible && Math.hypot(sp.x - hit.x, sp.z - hit.z) < 1.1); if (s >= 0) return moveTo(s); }
+  press(e.timeStamp);
+});
+for (const ev of ["pointerup", "pointercancel"]) cv.addEventListener(ev, () => release());
+cv.addEventListener("wheel", (e) => { CONFIG.camDist = clamp(CONFIG.camDist + e.deltaY * 0.01, 4.5, 14); }, { passive: true });
+document.addEventListener("touchmove", (e) => { if (e.target === cv || e.target === actBtn) e.preventDefault(); }, { passive: false });
+
+// ── MAIN LOOP ───────────────────────────────────────────────────────────────────────
+let last = performance.now(), lastHb = 0, lastHud = 0;
+const camLook = new THREE.Vector3();
+function frame(now) {
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)), t = now / 1000; last = now;
+  if (now - lastHb > 1000) { lastHb = now; net.me.set("hb", Date.now()); fixColor(); fixSpot(); }
+  if (isHost()) hostTick(dt, now); else host.was = false;
+  if (ATTRACT) autopilot(now);
+  walkTick(dt); fishTick(dt); publish(false);
+  animateWater(t);
+  // Everyone: people from their entities, bots from the host, me from my own state.
+  const seen = new Set([net.sessionId]), live = new Set(livePlayers());
+  for (const [id, p] of Object.entries(S.entities.players || {})) {
+    if (id === net.sessionId || !live.has(id)) continue;
+    const a = field("a:" + id, p.a, null); if (!a) continue;
+    const said = field("say:" + id, p.say, null), look = lookOf(id), v = viewOf(id);
+    v.name = String(look.n ?? "Player");
+    if (said && said.k > (heard.get(id) || 0)) { heard.set(id, said.k); bubble(id, v.name, look.c || "#ccc", String(said.t)); }
+    seen.add(id); show(v, a, dt, now, t, { n: v.name, c: look.c, hat: look.hat });
+  }
+  for (const b of botList()) {
+    const v = viewOf(b.i); v.name = b.n;
+    if (b.say && b.say.k > (heard.get(b.i) || 0)) { const first = !heard.has(b.i); heard.set(b.i, b.say.k); if (!isHost() && b.say.t) bubble(b.i, b.n, b.c, b.say.t, !first); }
+    seen.add(b.i); show(v, { ...b, d: 1 }, dt, now, t, { n: b.n, c: b.c, hat: b.hat });
+  }
+  const mine = viewOf(net.sessionId); mine.name = myLook.n; setLook(mine, myLook);
+  mine.speed = me.path ? CONFIG.walkSpeed : 0; mine.x = me.x; mine.z = me.z; mine.h = me.h; mine.fresh = false;
+  mine.g.position.set(me.x, DECK, me.z); mine.g.rotation.y = me.h;
+  animate(mine, me.e, me.ek, pose(mine, me, dt, now, t), t);
+  for (const id of [...views.keys()]) if (!seen.has(id)) dropView(id);
+  // free spots glow while you are not busy
+  const claims = humanClaims().spots, botSpots = new Set(botList().map((b) => b.s)), idle = !ATTRACT && !me.path && ["idle", "hold", "lost"].includes(me.st);
+  spotRings.forEach((r, i) => { r.visible = idle && i !== me.s && !claims.has(i) && !botSpots.has(i); r.material.opacity = 0.25 + 0.2 * Math.sin(t * 3 + i); });
+  effectsTick(dt, t); jumpTick(now);
+  glitTex.offset.y = (t * 0.012) % 1;
+  placeCamera(dt, t);
+  renderer.render(scene, camera);
+  for (const v of views.values()) placeTag(v, now);
+  if (now - lastHud > 100) { lastHud = now; hud(now); }
+  requestAnimationFrame(frame);
+}
+/** Behind you, looking out over your bobber. ?attract drifts slowly along the end of the dock. */
+function placeCamera(dt, t) {
+  if (ATTRACT) {
+    const x = Math.sin(t * 0.15 - 1.2) * 4.2;
+    camera.position.set(x, 4, -11); camera.lookAt(x * 0.7, 1.5, -30);
+    return;
+  }
+  const tall = camera.aspect < 1, d = CONFIG.camDist * (tall ? 1.5 : 1), fx = Math.sin(me.h), fz = Math.cos(me.h), side = tall ? 0.8 : 1.8; // over your right shoulder
+  const want = V.set(me.x - fx * d - fz * side, DECK + CONFIG.camHeight * (tall ? 1.35 : 1), me.z - fz * d + fx * side);
+  camera.position.lerp(want, 1 - Math.pow(0.002, dt));
+  camLook.lerp(new THREE.Vector3(me.x + fx * 13 - fz * side * 0.5, DECK - 0.8, me.z + fz * 13 + fx * side * 0.5), 1 - Math.pow(0.002, dt));
+  camera.lookAt(camLook);
+}
+/** Someone else, eased toward where they last said they were. */
+function show(v, a, dt, now, t, look) {
+  setLook(v, look);
+  if (v.fresh) { v.x = a.x; v.z = a.z; v.h = a.ry; v.fresh = false; }
+  const k = 1 - Math.pow(0.001, dt), px = v.x, pz = v.z;
+  v.x += (a.x - v.x) * k; v.z += (a.z - v.z) * k; v.h += Math.atan2(Math.sin(a.ry - v.h), Math.cos(a.ry - v.h)) * k;
+  v.speed += (Math.hypot(v.x - px, v.z - pz) / Math.max(dt, 0.001) - v.speed) * 0.2;
+  v.g.position.set(v.x, DECK, v.z); v.g.rotation.y = v.h;
+  animate(v, a.e || "", a.ek || 0, pose(v, a, dt, now, t), t);
+}
+let started = 0;
+function hud(now) {
+  if (ATTRACT) { $("net").textContent = ""; return; }
+  const n = livePlayers().length;
+  $("net").textContent = reconnecting ? "Reconnecting…" : net.offline ? "Offline: playing with bots" : `Online · ${n} player${n === 1 ? "" : "s"}${isHost() ? " · you run the bots" : ""}`;
+  if (!started) started = now;
+  // the big button and the status line say what to do next
+  const st = me.st, label = { idle: "CAST", hold: "CAST", lost: "CAST", charge: "LET GO", cast: "…", wait: "WAIT", bite: "HOOK!", reel: "REEL" }[st];
+  if (actBtn.textContent !== label) actBtn.textContent = label;
+  actBtn.classList.toggle("bite", st === "bite"); actBtn.classList.toggle("on", st === "charge" || (st === "reel" && me.reeling));
+  let text = "", sub = "";
+  if (performance.now() < me.msgUntil) { text = me.msg; sub = me.sub; }
+  else if (me.path) text = "Walking to your spot…";
+  else if (st === "idle" && now - started < 20000) { text = touch ? "Hold CAST, let go at full power" : "Hold Space (or CAST), let go at full power"; sub = "◀ ▶ or tap a glowing ring to change spots"; }
+  else if (st === "charge") { text = "Let go at full power!"; sub = "Far casts reach deeper water and rarer fish"; }
+  else if (st === "bite") text = "BITE! Tap now!";
+  else if (st === "reel") { text = me.running ? "It's pulling! Let go!" : "Hold to reel it in"; sub = me.running ? "" : "Let go when it pulls, or the line snaps"; }
+  $("status").innerHTML = text ? `${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ""}` : "";
+  $("status").classList.toggle("bite", st === "bite");
+  // the meters
+  $("meter").hidden = st !== "charge" && st !== "reel";
+  $("powerBar").hidden = st !== "charge"; $("tensionBar").hidden = $("lineBar").hidden = st !== "reel";
+  if (st === "charge") { $("meterL").textContent = "Power"; $("meterR").textContent = Math.round(me.power * 100) + "%"; $("powerFill").style.width = me.power * 100 + "%"; }
+  if (st === "reel") {
+    $("meterL").textContent = "Tension"; $("meterR").textContent = me.fish ? `${Math.max(0, Math.round(me.d * 100))}% of the line out` : "";
+    $("needle").style.left = Math.min(100, me.tension * 100) + "%"; $("needle").style.background = me.tension > 0.8 ? "#ff4d4d" : "#fff";
+    $("fishDot").style.left = clamp(me.d / 1.15, 0, 1) * 100 + "%"; $("fishDot").style.transform = me.running ? `translateX(${Math.sin(now / 40) * 3}px)` : "";
+  }
+  $("spots").style.opacity = me.st === "reel" ? 0.4 : 1;
+}
+
+(async function start() {
+  document.body.classList.toggle("attract", ATTRACT);
+  net = await connect();
+  net.onState((st) => { S = st; });
+  net.on("chat", (msg, from) => {
+    if (!msg || typeof msg.t !== "string") return;
+    const look = lookOf(from), text = msg.t.slice(0, 80);
+    if ((msg.k || 0) > (heard.get(from) || 0)) { heard.set(from, msg.k || 0); bubble(from, look.n || "Player", look.c || "#ccc", text); }
+    maybeReply(look.n || "friend", text);
+  });
+  net.onDisconnect(() => { reconnecting = true; $("net").textContent = "Reconnecting…"; });
+  net.onReconnect(() => { reconnecting = false; });
+  net.onLive((live) => { $("event").textContent = (live && live.active || []).map((e) => "🎉 " + e.title).join(" · "); });
+  // your color and spot: the first ones nobody (person or bot) has
+  const claims = humanClaims(), botsNow = field("shared:bots", S.shared.bots, []);
+  const taken = new Set([...claims.colors, ...botsNow.map((b) => b.c)]);
+  myLook.c = COLORS.find((c) => !taken.has(c)) || pick(COLORS);
+  myLook.j = Date.now(); // when you joined: settles who changes color if two players match
+  me.s = ATTRACT ? 8 : PREFERRED.find((s) => !claims.spots.has(s) && !botsNow.some((b) => b.s === s)) ?? PREFERRED.find((s) => !claims.spots.has(s)) ?? 0;
+  const sp = SPOTS[me.s]; me.x = sp.x; me.z = sp.z; me.h = sp.h;
+  if (!ATTRACT) {
+    me.x = 0; me.z = clamp(sp.az + 7, -8, 15); me.path = routeTo(me.x, me.z, me.s); // stroll down the dock to it
+    applySave(localSave.get());
+  }
+  net.me.set({ look: JSON.stringify(myLook), hb: Date.now() }); joinedAt = performance.now();
+  publish(true);
+  if (!net.offline && typeof MP !== "undefined") {
+    player = MP.auth({ key: MP_CONNECT.key, apiUrl: MP_CONNECT.apiUrl }); board = player.leaderboard(CONFIG.board);
+    player.getPlayer().then(loadAccountSave).catch(() => {});
+  }
+  camera.position.set(me.x, 6, me.z + 9); camLook.set(me.x, 0, me.z - 10);
+  if (TEST) window.__test = { me, S: () => S, isHost, botList, livePlayers, press, release, moveTo, save: () => save, views };
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
