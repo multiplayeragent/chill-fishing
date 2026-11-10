@@ -1110,6 +1110,7 @@ document.addEventListener("touchmove", (e) => { if (e.target === cv || e.target 
 let last = performance.now(), lastHb = 0, lastHud = 0;
 const camLook = new THREE.Vector3();
 function frame(now) {
+  requestAnimationFrame(frame);
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)), t = now / 1000; last = now;
   if (now - lastHb > 1000) { lastHb = now; net.me.set("hb", Date.now()); fixColor(); fixSpot(); }
   if (isHost()) hostTick(dt, now); else host.was = false;
@@ -1145,7 +1146,6 @@ function frame(now) {
   renderer.render(scene, camera);
   for (const v of views.values()) placeTag(v, now);
   if (now - lastHud > 100) { lastHud = now; hud(now); }
-  requestAnimationFrame(frame);
 }
 /** Behind you, looking out over your bobber. ?attract drifts slowly along the end of the dock. */
 function placeCamera(dt, t) {
