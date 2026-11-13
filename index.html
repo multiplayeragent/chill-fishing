@@ -25,7 +25,7 @@
   #status small { display: block; margin-top: 2px; font-size: 15px; font-weight: 600; opacity: .92; }
   #status.bite { color: #ffe066; font-size: 40px; animation: pulse .35s ease-in-out infinite alternate; }
   @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
-  #toast { left: 16px; right: 16px; top: 15%; text-align: center; font-size: 17px; font-weight: 800; color: #ffe8a8; opacity: 0; transition: opacity .4s; }
+  #toast { left: 16px; right: 16px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 262px); text-align: center; font-size: 17px; font-weight: 800; color: #ffe8a8; opacity: 0; transition: opacity .4s; }
   #toast.on { opacity: 1; }
   #meter { left: 50%; transform: translateX(-50%); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 178px); width: min(300px, calc(100vw - 48px)); }
   #meter .lbl { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 3px; }
@@ -55,6 +55,7 @@
   .card ol { margin: 0; padding-left: 26px; font-size: 14px; text-align: left; }
   .card li span { float: right; font-variant-numeric: tabular-nums; }
   .card li.me { color: #d0562e; font-weight: 800; }
+  .card li.note { list-style: none; margin-left: -26px; color: #5a5068; } /* a status line, not a numbered entry */
   .card p { margin: 6px 0; font-size: 14px; color: #5a5068; }
   .card label { display: block; margin: 12px 0 6px; font-size: 13px; font-weight: 700; color: #6a6078; }
   .card input { width: 100%; box-sizing: border-box; height: 44px; border: 2px solid #eadfd6; border-radius: 12px; padding: 0 12px; font: 600 16px system-ui, sans-serif; }
@@ -72,7 +73,7 @@
   .fish { padding: 6px; border-radius: 12px; background: #f6ece2; text-align: center; font-size: 12px; line-height: 1.25; }
   .fish canvas { width: 100%; aspect-ratio: 2 / 1; }
   .fish b { display: block; font-size: 12px; } .fish i { font-style: normal; color: #7a6e86; }
-  @media (max-width: 520px) { #toast { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 240px); font-size: 15px; } #status { font-size: 21px; } }
+  @media (max-width: 520px) { #toast { font-size: 15px; } #status { font-size: 21px; } }
   [hidden] { display: none !important; }
   .attract .hud, .attract #top, .attract #bar, .attract #spots, .attract #act, .attract .tag .name { display: none !important; }
 </style>
@@ -109,7 +110,7 @@
   <button class="go" id="logClose">Back to fishing</button>
 </div></div>
 <div class="panel" id="boardPanel" hidden><div class="card">
-  <h2>Biggest catches</h2><ol id="board"><li>Loading…</li></ol><p id="myBest"></p>
+  <h2>Biggest catches</h2><ol id="board"><li class="note">Loading…</li></ol><p id="myBest"></p>
   <button class="go" id="boardClose">Back to fishing</button>
 </div></div>
 <div class="panel" id="lookPanel" hidden><div class="card">
@@ -973,11 +974,11 @@ async function loadAccountSave() {
 function showBoard() {
   const list = $("board");
   $("myBest").textContent = save.best ? `Your biggest: ${FISH.find((f) => f.id === save.bestF)?.name || "a fish"}, ${kgText(save.best / 1000)}` : "Land a fish to get on the board.";
-  if (!board) { list.innerHTML = "<li>Leaderboards need a connection.</li>"; return; }
-  list.innerHTML = "<li>Loading…</li>";
+  if (!board) { list.innerHTML = `<li class="note">Leaderboards need a connection.</li>`; return; }
+  list.innerHTML = `<li class="note">Loading…</li>`;
   board.top(10).then(({ entries }) => {
-    list.innerHTML = entries.length ? entries.map((e) => `<li>${esc(e.username || "Player")}<span>${kgText(e.score / 1000)}</span></li>`).join("") : "<li>No catches yet. Land the first!</li>";
-  }).catch(() => { list.innerHTML = "<li>Couldn't load the leaderboard.</li>"; });
+    list.innerHTML = entries.length ? entries.map((e) => `<li>${esc(e.username || "Player")}<span>${kgText(e.score / 1000)}</span></li>`).join("") : `<li class="note">No catches yet. Land the first!</li>`;
+  }).catch(() => { list.innerHTML = `<li class="note">Couldn't load the leaderboard.</li>`; });
 }
 
 // ── CHAT & PANELS ───────────────────────────────────────────────────────────────────
@@ -1104,6 +1105,7 @@ cv.addEventListener("pointerdown", (e) => {
   press(e.timeStamp);
 });
 for (const ev of ["pointerup", "pointercancel"]) cv.addEventListener(ev, () => release());
+cv.addEventListener("contextmenu", (e) => e.preventDefault()); // right-click casts like a click, no browser menu
 cv.addEventListener("wheel", (e) => { CONFIG.camDist = clamp(CONFIG.camDist + e.deltaY * 0.01, 4.5, 14); }, { passive: true });
 document.addEventListener("touchmove", (e) => { if (e.target === cv || e.target === actBtn) e.preventDefault(); }, { passive: false });
 
@@ -1218,7 +1220,7 @@ function hud(now) {
   net.onReconnect(() => { reconnecting = false; });
   net.onLive((live) => { $("event").textContent = (live && live.active || []).map((e) => "🎉 " + e.title).join(" · "); });
   // your color and spot: the first ones nobody (person or bot) has
-  const claims = humanClaims(), botsNow = field("shared:bots", S.shared.bots, []);
+  const claims = humanClaims(), botsNow = unpackBots(S.shared.bots);
   const taken = new Set([...claims.colors, ...botsNow.map((b) => b.c)]);
   myLook.c = COLORS.find((c) => !taken.has(c)) || pick(COLORS);
   myLook.j = Date.now(); // when you joined: settles who changes color if two players match
