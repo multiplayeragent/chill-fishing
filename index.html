@@ -899,6 +899,7 @@ function landFish() {
   sfxSplash(0.08); sfxFanfare(FISH[f].r, 0.6);
   if (ATTRACT) return;
   systemLine(`🎣 You caught ${an(FISH[f].name)} · ${kgText(kg)}`, RARITY[FISH[f].r].color);
+  botsCheer(net.sessionId, myLook.n, FISH[f]); // the host's own catches too (other people's are seen in onStateChange)
   setTimeout(() => showCatch(f, kg, result), 650);
 }
 function publish(force) {
